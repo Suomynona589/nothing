@@ -1,0 +1,235 @@
+<html lang="en"><head>
+    <meta charset="utf-8">
+    <link rel="icon" href="/favicon.ico">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="A game of exploring and racing through Wikipedia articles! Fun and surprise await as you go down the &quot;Wikipedia rabbit hole&quot; and find the &quot;degrees of separation&quot; of sometimes wildly different topics in this addictive and educational game.">
+    <script async="" src="https://www.googletagmanager.com/gtm.js?id=GTM-P47N8P9"></script><script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-P47N8P9');</script>
+    <title>The Wiki Game - Wikipedia Game - Explore Wikipedia!</title>
+    <script type="module" crossorigin="" src="/assets/index-Cz-L2xFT.js"></script>
+    <link rel="stylesheet" crossorigin="" href="/assets/index-CWY7OF05.css">
+  </head>
+  <body>
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-P47N8P9"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"><div class="heygg-body font-noto-sans"><div class="flex h-screen overflow-hidden bg-brown-300"><div class="flex flex-col flex-1 justify-between overflow-y-auto"><header class="sticky top-0 z-10 bg-white"><div class="flex items-center justify-between h-16 -mb-px"><div class=""><div class="flex items-center font-noto-serif font-bold cursor-pointer ml-1"><img class="h-11 block" src="/assets/wendell-Djf05EX4.png" alt="Wendell"><div class="flex flex-col"><span class="my-1 text-xxs">The</span><span class="-mt-2.5 text-md">Wiki</span><span class="-mt-2.5 text-md">Game</span></div></div></div><div class="flex items-center ml-auto"><div class="relative inline-flex px-2"><button class="inline-flex justify-center items-center group px-3 py-2 rounded-lg border border-gray-200 border-b-gray-200 border-b-3" aria-haspopup="true" aria-expanded="false"><div class="flex items-center truncate"><span class="truncate ml-2 text-sm font-medium group-hover:text-slate-800">FuchsiaShrimp71</span><svg class="w-3 h-3 shrink-0 ml-1 fill-current text-black" viewBox="0 0 12 12"><path d="M5.9 11.4L.5 6l1.4-1.4 4 4 4-4L11.3 6z"></path></svg></div></button><div class="hidden origin-top-right z-10 absolute top-full right-2 w-40 bg-white rounded-lg border border-gray-200 border-b-gray-200 border-b-3 mt-1"><div><div class="text-sm text-black hover:text-blue-500 flex items-center py-1 px-3 cursor-pointer"><div>Logout</div></div></div></div></div></div></div></header><main class="flex flex-col flex-1"><div class="w-full max-w-9xl mx-auto flex-1"><div class="flex flex-col h-full"><div class="flex-1"><div class="flex flex-wrap md:flex-nowrap overflow-y-auto"><div class="relative sm:fixed sm:top-20 w-full sm:w-1/2 m-8 border-gray-800 border border-b-6 rounded-2xl bg-gradient-to-b from-white to-brown-50"><div class="flex justify-center p-4 lg:p-6"><div class="text-left text-xl lg:text-2xl"><div class="font-noto-sans uppercase font-bold py-2"><img class="inline w-8 mr-2" src="data:image/png;base64,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" alt="Wendy">Play Current Round</div></div></div><div class="m-8"><div class="flex md:flex-row flex-col space-y-12 md:space-y-0 md:space-x-4"><div class="flex-1"><div class="flex sm:flex-col items-start sm:items-center space-x-4 sm:space-x-0 sm:space-y-4"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/Mark_Ruffalo_%2836201774756%29_%28cropped%29.jpg/130px-Mark_Ruffalo_%2836201774756%29_%28cropped%29.jpg" class="w-24 h-24 md:h-32 md:w-32 rounded-full object-cover border border-gray-200 drop-shadow-lg bg-gray-100" alt="Start Article"><div class="flex flex-col items-start sm:items-center"><span class="uppercase font-thin text-lg sm:hidden">Start</span><span class="text-2xl lg:text-3xl text-left sm:text-center font-bold font-noto-serif">Mark Ruffalo</span></div></div></div><div class="hidden md:flex md:justify-center items-center"><div class="bg-slate-500 p-2 rounded-lg"><svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="4" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg></div></div><div class="flex-1"><div class="flex sm:flex-col items-start sm:items-center space-x-4 sm:space-x-0 sm:space-y-4"><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/Scandinavia_M2002074_lrg.jpg/250px-Scandinavia_M2002074_lrg.jpg" class="w-24 h-24 md:h-32 md:w-32 rounded-full object-cover border border-gray-200 drop-shadow-lg bg-gray-100" alt="Goal Article"><div class="flex flex-col items-start sm:items-center"><span class="uppercase font-thin text-lg sm:hidden">Goal</span><span class="text-2xl lg:text-3xl text-left sm:text-center font-bold font-noto-serif">Scandinavia</span></div></div></div></div></div><div class="flex flex-col justify-center items-center my-12"><div class="flex flex-row"><button type="button" class="relative flex items-center justify-center
+        border-b-3
+        bg-gradient-to-b from-btn-grad-start to-btn-grad-end hover:from-btn-grad-end hover:to-btn-grad-end
+        border-btn-shadow ring-inset
+        hover:ring-btn-shadow
+        text-white px-4 py-2 rounded-lg 
+        font-semibold mt-4 w-64 
+        "><div><span class="text-2xl">Play Now</span></div></button></div><div class="flex flex-row mt-2"><span><span class="mr-1">Round ends in</span><span class="">94 seconds</span></span></div></div></div><div class="w-full pt-0 p-8 sm:pt-12 sm:pl-16 sm:pr-8 sm:ml-[calc(50%)] max-w-full overflow-hidden"><div class=" border-gray-800 border border-b-6 rounded-2xl bg-gradient-to-b from-white to-brown-50"><div class="flex justify-center p-4 lg:p-6 rounded-t-2xl bg-brown-300"><div class="text-left text-xl lg:text-2xl"><div class="font-noto-sans uppercase font-bold py-2"><img class="inline w-16 mr-2" src="/assets/groups-B_ArshjC.png" alt="Groups logo">Wiki Game Leaderboards</div></div></div><div class="flex bg-brown-300"><button class="flex-grow rounded-t-md text-center p-1 lg:p-2
+                            font-noto-sans text-xs lg:text-sm uppercase
+                       mr-1">Round Results</button><button class="flex-grow rounded-t-md text-center p-1 lg:p-2
+                            font-noto-sans text-xs lg:text-sm uppercase
+                      bg-gray-50 mr-1">Day Leaders</button><button class="flex-grow rounded-t-md text-center p-1 lg:p-2
+                            font-noto-sans text-xs lg:text-sm uppercase
+                       mr-1">Week Leaders</button><button class="flex-grow rounded-t-md text-center p-1 lg:p-2
+                            font-noto-sans text-xs lg:text-sm uppercase
+                       ">All-time Leaders</button></div><div class=""><div class="flex flex-col"><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#1.</span><span class="font-bold mx-2">Cyberr</span><span class="font-extralight">(29300<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#2.</span><span class="font-bold mx-2">unitedofflite</span><span class="font-extralight">(27900<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#3.</span><span class="font-bold mx-2">homowizard</span><span class="font-extralight">(19700<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#4.</span><span class="font-bold mx-2">asmaaelbenni123</span><span class="font-extralight">(15200<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#5.</span><span class="font-bold mx-2">raos</span><span class="font-extralight">(13800<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#6.</span><span class="font-bold mx-2">banana917</span><span class="font-extralight">(13000<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#7.</span><span class="font-bold mx-2">CrimsonTurkey9</span><span class="font-extralight">(12900<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#8.</span><span class="font-bold mx-2">Jadeunicorn</span><span class="font-extralight">(11400<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#9.</span><span class="font-bold mx-2">whotookthebomp</span><span class="font-extralight">(10400<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#10.</span><span class="font-bold mx-2">PinkWombat23</span><span class="font-extralight">(9800<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#11.</span><span class="font-bold mx-2">abd17srk</span><span class="font-extralight">(9000<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#12.</span><span class="font-bold mx-2">Ander88</span><span class="font-extralight">(9000<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#13.</span><span class="font-bold mx-2">turdburd</span><span class="font-extralight">(8800<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#14.</span><span class="font-bold mx-2">Treefrogjohnson</span><span class="font-extralight">(7800<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#15.</span><span class="font-bold mx-2">badfish</span><span class="font-extralight">(7500<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#16.</span><span class="font-bold mx-2">domthebomb</span><span class="font-extralight">(6600<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#17.</span><span class="font-bold mx-2">nmmmmmniuobjbbbbbbbbbbbbbb</span><span class="font-extralight">(6500<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#18.</span><span class="font-bold mx-2">eringracecam</span><span class="font-extralight">(6500<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#19.</span><span class="font-bold mx-2">jb03</span><span class="font-extralight">(6400<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#20.</span><span class="font-bold mx-2">postrorty</span><span class="font-extralight">(6200<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#21.</span><span class="font-bold mx-2">Brian Balmages</span><span class="font-extralight">(6200<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#22.</span><span class="font-bold mx-2">SmartFella</span><span class="font-extralight">(5700<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#23.</span><span class="font-bold mx-2">Linirby</span><span class="font-extralight">(5200<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#24.</span><span class="font-bold mx-2">ratlemonade</span><span class="font-extralight">(5000<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#25.</span><span class="font-bold mx-2">Avryanz</span><span class="font-extralight">(4800<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#26.</span><span class="font-bold mx-2">Dingers68</span><span class="font-extralight">(4700<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#27.</span><span class="font-bold mx-2">Fredy.VDB</span><span class="font-extralight">(4600<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#28.</span><span class="font-bold mx-2">xtothex</span><span class="font-extralight">(4500<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#29.</span><span class="font-bold mx-2">lifehachzach</span><span class="font-extralight">(4300<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#30.</span><span class="font-bold mx-2">raimi</span><span class="font-extralight">(4100<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#31.</span><span class="font-bold mx-2">cajonnio</span><span class="font-extralight">(3700<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#32.</span><span class="font-bold mx-2">Claquette</span><span class="font-extralight">(3300<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#33.</span><span class="font-bold mx-2">pickyturtle</span><span class="font-extralight">(2900<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#34.</span><span class="font-bold mx-2">Apinglol</span><span class="font-extralight">(2600<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#35.</span><span class="font-bold mx-2">FindFast</span><span class="font-extralight">(2500<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#36.</span><span class="font-bold mx-2">pixagrande</span><span class="font-extralight">(2400<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#37.</span><span class="font-bold mx-2">Haluska</span><span class="font-extralight">(2400<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#38.</span><span class="font-bold mx-2">Tristanfrog</span><span class="font-extralight">(2300<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#39.</span><span class="font-bold mx-2">Osiris1634</span><span class="font-extralight">(2300<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#40.</span><span class="font-bold mx-2">Lsk3920</span><span class="font-extralight">(2200<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#41.</span><span class="font-bold mx-2">dinosaurlegs1</span><span class="font-extralight">(2100<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#42.</span><span class="font-bold mx-2">The Biggest Red</span><span class="font-extralight">(2100<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#43.</span><span class="font-bold mx-2">MMflipitaroundWW</span><span class="font-extralight">(2100<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#44.</span><span class="font-bold mx-2">Boilerflip</span><span class="font-extralight">(2100<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#45.</span><span class="font-bold mx-2">meanamta</span><span class="font-extralight">(1900<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#46.</span><span class="font-bold mx-2">cojafox</span><span class="font-extralight">(1900<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#47.</span><span class="font-bold mx-2">SlippyFishy</span><span class="font-extralight">(1800<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#48.</span><span class="font-bold mx-2">GoldCrab25</span><span class="font-extralight">(1800<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#49.</span><span class="font-bold mx-2">CPAT200IQ</span><span class="font-extralight">(1800<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#50.</span><span class="font-bold mx-2">Mtz</span><span class="font-extralight">(1700<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#51.</span><span class="font-bold mx-2">OrangeHamster</span><span class="font-extralight">(1500<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#52.</span><span class="font-bold mx-2">rotofo</span><span class="font-extralight">(1400<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#53.</span><span class="font-bold mx-2">Shot de Jimo</span><span class="font-extralight">(1400<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#54.</span><span class="font-bold mx-2">zarahopps</span><span class="font-extralight">(1300<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#55.</span><span class="font-bold mx-2">kleingeitje</span><span class="font-extralight">(1300<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#56.</span><span class="font-bold mx-2">Someone_On</span><span class="font-extralight">(1300<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#57.</span><span class="font-bold mx-2">JaytheGreat</span><span class="font-extralight">(1300<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#58.</span><span class="font-bold mx-2">2015905</span><span class="font-extralight">(1300<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#59.</span><span class="font-bold mx-2">rfyhwsofijhwlfowirydhf</span><span class="font-extralight">(1200<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#60.</span><span class="font-bold mx-2">PinkMonkeyPanda</span><span class="font-extralight">(1200<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#61.</span><span class="font-bold mx-2">AddieL</span><span class="font-extralight">(1200<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#62.</span><span class="font-bold mx-2">EconomistaE</span><span class="font-extralight">(1100<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#63.</span><span class="font-bold mx-2">spicypisces</span><span class="font-extralight">(1000<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#64.</span><span class="font-bold mx-2">wikiwikiwhat</span><span class="font-extralight">(900<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#65.</span><span class="font-bold mx-2">Lavender oyster</span><span class="font-extralight">(900<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#66.</span><span class="font-bold mx-2">LaBestia</span><span class="font-extralight">(900<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#67.</span><span class="font-bold mx-2">Eoghann0520</span><span class="font-extralight">(900<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#68.</span><span class="font-bold mx-2">Cyber_Claw</span><span class="font-extralight">(900<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#69.</span><span class="font-bold mx-2">shdjash</span><span class="font-extralight">(800<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#70.</span><span class="font-bold mx-2">jos123</span><span class="font-extralight">(800<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#71.</span><span class="font-bold mx-2">VioletDeer0</span><span class="font-extralight">(800<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#72.</span><span class="font-bold mx-2">Finja</span><span class="font-extralight">(800<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#73.</span><span class="font-bold mx-2">BeigeCuttlefish78Penelope42</span><span class="font-extralight">(800<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#74.</span><span class="font-bold mx-2">AydenB</span><span class="font-extralight">(800<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#75.</span><span class="font-bold mx-2">sososophie</span><span class="font-extralight">(700<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#76.</span><span class="font-bold mx-2">dispatcher46</span><span class="font-extralight">(700<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#77.</span><span class="font-bold mx-2">Youmeusevry</span><span class="font-extralight">(700<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#78.</span><span class="font-bold mx-2">Pytak</span><span class="font-extralight">(700<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#79.</span><span class="font-bold mx-2">OrangeGoose</span><span class="font-extralight">(700<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#80.</span><span class="font-bold mx-2">GrappaPete</span><span class="font-extralight">(700<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#81.</span><span class="font-bold mx-2">ConorA</span><span class="font-extralight">(700<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#82.</span><span class="font-bold mx-2">greavierge</span><span class="font-extralight">(600<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#83.</span><span class="font-bold mx-2">RarelianAbnormal</span><span class="font-extralight">(600<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#84.</span><span class="font-bold mx-2">LewisCornelion</span><span class="font-extralight">(600<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#85.</span><span class="font-bold mx-2">Eldritch_Sloth</span><span class="font-extralight">(600<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#86.</span><span class="font-bold mx-2">Darla</span><span class="font-extralight">(600<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#87.</span><span class="font-bold mx-2">rhivn8</span><span class="font-extralight">(500<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#88.</span><span class="font-bold mx-2">kaybussy</span><span class="font-extralight">(500<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#89.</span><span class="font-bold mx-2">chucker</span><span class="font-extralight">(500<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#90.</span><span class="font-bold mx-2">cawcawcaw</span><span class="font-extralight">(500<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#91.</span><span class="font-bold mx-2">Tropinha</span><span class="font-extralight">(500<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#92.</span><span class="font-bold mx-2">TheFinalDistrict</span><span class="font-extralight">(500<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#93.</span><span class="font-bold mx-2">Stupidnigga</span><span class="font-extralight">(500<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#94.</span><span class="font-bold mx-2">CutestCannibal</span><span class="font-extralight">(500<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#95.</span><span class="font-bold mx-2">AnonTogo</span><span class="font-extralight">(500<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#96.</span><span class="font-bold mx-2">wise berri</span><span class="font-extralight">(400<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            "><span class="font-extralight">#97.</span><span class="font-bold mx-2">randal_ivory_X3</span><span class="font-extralight">(400<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-100
+                                            "><span class="font-extralight">#98.</span><span class="font-bold mx-2">Saucy Dill</span><span class="font-extralight">(400<span class="text-xs">pts</span>)</span></div><div class="flex flex-row p-3 border-gray-300 
+                                            bg-gray-50
+                                            rounded-b-2xl"><span class="font-extralight">#99.</span><span class="font-bold mx-2">Beanie120</span><span class="font-extralight">(300<span class="text-xs">pts</span>)</span></div></div></div></div></div></div></div><div class="flex justify-center w-full py-8"><a href="mailto:alex@thewikigame.com" class="text-black hover:text-gray-800 underline">Have feedback?</a></div></div></div></main><footer class="w-full bg-white p-6 mt-6"><div class="flex flex-col md:flex-row items-center justify-center"><div class="w-full sm:w-4/5 md:w-3/5 lg:w-2/5 flex items-center"><img class="w-20" src="/assets/ios-app-icon-C5fPQNjz.png"><div class="mx-4"><p class="text-xl font-bold">Get The Wiki Game App!</p><p class="font-thin">Play on your phone featuring 5 game modes with 200 unique levels. Now includes minimal path unlocking!</p></div></div><button class="mt-8 sm:mt-0 flex justify-center w-44 bg-white py-1 px-4 rounded-lg text-black border-solid border-2 border-b-6 border-r-6 border-black"><div class="text-4xl font-bold"></div><div class="ml-2"><div class="text-xs -mb-1">Download on the</div><div class="text-xl font-bold">App Store</div></div></button></div></footer></div></div></div></div>
+  
+
+</body></html>
