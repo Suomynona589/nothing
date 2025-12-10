@@ -1,784 +1,273 @@
-// ==UserScript==
-// @name         Infinite Craft - Auto Combiner V3 (Mobile Optimized)
-// @namespace    http://tampermonkey.net/
-// @version      3
-// @description  Automates combining a target element with all others in Infinite Craft, remembering failed combinations to speed up runs. Mobile-friendly UI.
-// @author       YourName (or Generated)
-// @match        https://neal.fun/infinite-craft/
-// @grant        none
-// @run-at       document-idle
-// @license     MIT
-// @downloadURL https://update.greasyfork.org/scripts/551718/Infinite%20Craft%20-%20Auto%20Combiner%20V3%20%28Mobile%20Optimized%29.user.js
-// @updateURL https://update.greasyfork.org/scripts/551718/Infinite%20Craft%20-%20Auto%20Combiner%20V3%20%28Mobile%20Optimized%29.meta.js
-// ==/UserScript==
-
-(() => {
-    // --- CONFIGURATION --- (Adjust delays if needed)
-    const CONFIG = {
-        // Selectors specific to Infinite Craft (FIXED)
-        itemSelector: '.items .item', // FIXED: Was '.item', now '.items .item'
-        gameContainerSelector: '.container', // Simplified
-
-        // UI Element IDs & Classes
-        panelId: 'auto-combo-panel',
-        targetInputId: 'auto-combo-target-input',
-        suggestionBoxId: 'auto-combo-suggestion-box',
-        suggestionItemClass: 'auto-combo-suggestion-item',
-        statusBoxId: 'auto-combo-status',
-        startButtonId: 'auto-combo-start-button',
-        stopButtonId: 'auto-combo-stop-button',
-        clearFailedButtonId: 'auto-combo-clear-failed-button',
-        speedSelectId: 'auto-combo-speed-select',
-        debugMarkerClass: 'auto-combo-debug-marker',
-
-        // Speed Presets (all values in ms)
-        speedPresets: {
-            slow: {
-                interComboDelay: 150,
-                postComboScanDelay: 800,
-                dragStepDelay: 20,
-                dragBetweenDelay: 250
-            },
-            normal: {
-                interComboDelay: 100,
-                postComboScanDelay: 650,
-                dragStepDelay: 15,
-                dragBetweenDelay: 200
-            },
-            fast: {
-                interComboDelay: 50,
-                postComboScanDelay: 500,
-                dragStepDelay: 10,
-                dragBetweenDelay: 150
-            },
-            turbo: {
-                interComboDelay: 25,
-                postComboScanDelay: 350,
-                dragStepDelay: 5,
-                dragBetweenDelay: 100
-            }
-        },
-
-        // Default delays (will be overridden by speed selection)
-        interComboDelay: 100,
-        postComboScanDelay: 650,
-        dragStepDelay: 15,
-        dragBetweenDelay: 200,
-        scanDebounceDelay: 300,
-        suggestionHighlightDelay: 50,
-
-        // Behavior
-        suggestionLimit: 20,
-        debugMarkerDuration: 1000,
-
-        // Keys
-        keyArrowUp: 'ArrowUp',
-        keyArrowDown: 'ArrowDown',
-        keyEnter: 'Enter',
-        keyTab: 'Tab',
-
-        // Storage
-        storageKeyFailedCombos: 'infCraftAutoComboFailedCombosV2',
-        storageKeySpeed: 'infCraftAutoComboSpeed',
-
-        // Styling & Z-Index
-        panelZIndex: 10010,
-        suggestionZIndex: 10011,
-        markerZIndex: 10012,
-    };
-
-    // --- CORE CLASS ---
-    class AutoTargetCombo {
-        constructor() {
-            console.log('[AutoCombo] Initializing for Infinite Craft...');
-            this.itemElementMap = new Map(); // Map<string, Element>
-            this.isRunning = false;
-            this.suggestionIndex = -1;
-            this.suggestions = [];
-            this.scanDebounceTimer = null;
-            this.failedCombos = new Set();
-
-            // UI References
-            this.panel = null;
-            this.targetInput = null;
-            this.suggestionBox = null;
-            this.statusBox = null;
-            this.startButton = null;
-            this.stopButton = null;
-            this.clearFailedButton = null;
-            this.speedSelect = null;
-            this.currentSpeed = 'normal';
-
-            // --- Initialization Steps ---
-            try {
-                this._injectStyles();
-                this._setupUI();
-
-                 // Check if essential UI elements were found after setup
-                 if (!this.panel || !this.targetInput || !this.statusBox || !this.startButton || !this.stopButton || !this.clearFailedButton || !this.speedSelect) {
-                    throw new Error("One or more critical UI elements missing after setup. Aborting.");
-                 }
-
-                this._setupEventListeners();
-                this._loadFailedCombos(); // Load saved failures
-                this._loadSpeed(); // Load saved speed setting
-                this.observeDOM();
-                this.scanItems(); // Perform initial scan
-                this.logStatus('Ready.');
-                console.log('[AutoCombo] Initialization complete.');
-            } catch (error) {
-                console.error('[AutoCombo] CRITICAL ERROR during initialization:', error);
-                this.logStatus(`❌ INIT FAILED: ${error.message}`, 'status-error');
-                // Clean up partial UI if needed
-                if (this.panel && this.panel.parentNode) {
-                    this.panel.parentNode.removeChild(this.panel);
-                }
-            }
-        }
-
-        // --- Initialization & Setup ---
-
-        _injectStyles() {
-            if (document.getElementById(`${CONFIG.panelId}-styles`)) return;
-            const css = `
-                #${CONFIG.panelId} {
-                    position: fixed; top: 8px; left: 8px; z-index: ${CONFIG.panelZIndex};
-                    background: rgba(250, 250, 250, 0.97); padding: 8px; border: 1px solid #aaa; border-radius: 6px;
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 12px; width: 200px; color: #111;
-                    box-shadow: 0 3px 10px rgba(0,0,0,0.25); display: flex; flex-direction: column; gap: 5px;
-                    max-width: calc(100vw - 16px);
-                }
-                #${CONFIG.panelId} * { box-sizing: border-box; }
-                #${CONFIG.panelId} div:first-child {
-                    font-weight: bold; margin-bottom: 2px; text-align: center; color: #333; font-size: 13px; padding-bottom: 3px; border-bottom: 1px solid #ddd;
-                 }
-                #${CONFIG.panelId} input, #${CONFIG.panelId} button, #${CONFIG.panelId} select {
-                     width: 100%; padding: 6px 8px; font-size: 12px;
-                    border: 1px solid #ccc; border-radius: 4px;
-                }
-                 #${CONFIG.panelId} input { background-color: #fff; color: #000; }
-                 #${CONFIG.panelId} button {
-                    cursor: pointer; background-color: #f0f0f0; color: #333; transition: background-color 0.2s ease, transform 0.1s ease;
-                    border: 1px solid #bbb; text-align: center; font-size: 11px; padding: 5px 6px;
-                 }
-                 #${CONFIG.panelId} button:hover { background-color: #e0e0e0; }
-                 #${CONFIG.panelId} button:active { transform: scale(0.98); }
-
-                 #${CONFIG.panelId} #${CONFIG.startButtonId} { background-color: #4CAF50; color: white; border-color: #3a8d3d;}
-                 #${CONFIG.panelId} #${CONFIG.startButtonId}:hover { background-color: #45a049; }
-                 #${CONFIG.panelId} #${CONFIG.stopButtonId} { background-color: #f44336; color: white; border-color: #c4302b;}
-                 #${CONFIG.panelId} #${CONFIG.stopButtonId}:hover { background-color: #da190b; }
-                 #${CONFIG.panelId} #${CONFIG.clearFailedButtonId} { background-color: #ff9800; color: white; border-color: #c67600;}
-                 #${CONFIG.panelId} #${CONFIG.clearFailedButtonId}:hover { background-color: #f57c00; }
-
-                 #${CONFIG.panelId} select {
-                    background-color: #fff; color: #333; cursor: pointer; font-size: 11px; padding: 5px 6px;
-                 }
-                 #${CONFIG.panelId} select:hover { background-color: #f8f8f8; }
-
-                #${CONFIG.suggestionBoxId} {
-                    display: none; border: 1px solid #aaa; background: #fff;
-                    position: absolute; max-height: 120px; overflow-y: auto;
-                    z-index: ${CONFIG.suggestionZIndex}; box-shadow: 0 3px 6px rgba(0,0,0,0.2);
-                    border-radius: 0 0 4px 4px; margin-top: -1px; font-size: 11px;
-                }
-                .${CONFIG.suggestionItemClass} {
-                    padding: 5px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #222;
-                }
-                .${CONFIG.suggestionItemClass}:hover { background-color: #f0f0f0; }
-                .${CONFIG.suggestionItemClass}.highlighted { background-color: #007bff; color: white; }
-
-                #${CONFIG.statusBoxId} {
-                    margin-top: 3px; color: #333; font-weight: 500; font-size: 10px; text-align: center;
-                    padding: 5px; background-color: #f9f9f9; border-radius: 3px; border: 1px solid #e5e5e5;
-                    line-height: 1.3; min-height: 26px; display: flex; align-items: center; justify-content: center;
-                 }
-                 #${CONFIG.statusBoxId}.status-running { color: #007bff; }
-                 #${CONFIG.statusBoxId}.status-stopped { color: #dc3545; }
-                 #${CONFIG.statusBoxId}.status-success { color: #28a745; }
-                 #${CONFIG.statusBoxId}.status-warning { color: #ffc107; text-shadow: 0 0 1px #aaa; }
-                 #${CONFIG.statusBoxId}.status-error { color: #dc3545; font-weight: bold; }
-
-                .${CONFIG.debugMarkerClass} {
-                    position: absolute; width: 8px; height: 8px; border-radius: 50%;
-                    z-index: ${CONFIG.markerZIndex}; pointer-events: none; opacity: 0.80;
-                    box-shadow: 0 0 4px 1px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.5);
-                    transition: opacity 0.5s ease-out;
-                }
-
-                @media (max-width: 480px) {
-                    #${CONFIG.panelId} {
-                        width: 180px;
-                        font-size: 11px;
-                        padding: 6px;
-                        gap: 4px;
-                    }
-                    #${CONFIG.panelId} input, #${CONFIG.panelId} button, #${CONFIG.panelId} select {
-                        padding: 5px 6px;
-                        font-size: 11px;
-                    }
-                    #${CONFIG.statusBoxId} {
-                        font-size: 9px;
-                        padding: 4px;
-                        min-height: 24px;
-                    }
-                }
-            `;
-            const styleSheet = document.createElement("style");
-            styleSheet.id = `${CONFIG.panelId}-styles`;
-            styleSheet.type = "text/css";
-            styleSheet.innerText = css;
-            document.head.appendChild(styleSheet);
-        }
-
-        _setupUI() {
-            const existingPanel = document.getElementById(CONFIG.panelId);
-            if (existingPanel) existingPanel.remove();
-
-            this.panel = document.createElement('div');
-            this.panel.id = CONFIG.panelId;
-            this.panel.innerHTML = `
-                <div>✨ Auto Combiner</div>
-                <input id="${CONFIG.targetInputId}" placeholder="Target Element" autocomplete="off">
-                <div id="${CONFIG.suggestionBoxId}"></div>
-                <select id="${CONFIG.speedSelectId}" title="Speed">
-                    <option value="slow">🐌 Slow</option>
-                    <option value="normal" selected>⚡ Normal</option>
-                    <option value="fast">🚀 Fast</option>
-                    <option value="turbo">💨 Turbo</option>
-                </select>
-                <button id="${CONFIG.startButtonId}">▶️ Start</button>
-                <button id="${CONFIG.clearFailedButtonId}">🗑️ Clear Fails</button>
-                <button id="${CONFIG.stopButtonId}">⛔ Stop</button>
-                <div id="${CONFIG.statusBoxId}">Initializing...</div>
-            `;
-            document.body.appendChild(this.panel);
-
-            // Get references using panel.querySelector
-            this.targetInput = this.panel.querySelector(`#${CONFIG.targetInputId}`);
-            this.suggestionBox = this.panel.querySelector(`#${CONFIG.suggestionBoxId}`);
-            this.statusBox = this.panel.querySelector(`#${CONFIG.statusBoxId}`);
-            this.startButton = this.panel.querySelector(`#${CONFIG.startButtonId}`);
-            this.stopButton = this.panel.querySelector(`#${CONFIG.stopButtonId}`);
-            this.clearFailedButton = this.panel.querySelector(`#${CONFIG.clearFailedButtonId}`);
-            this.speedSelect = this.panel.querySelector(`#${CONFIG.speedSelectId}`);
-
-             console.log('[AutoCombo] UI Element References:', {
-                panel: !!this.panel, targetInput: !!this.targetInput, suggestionBox: !!this.suggestionBox,
-                statusBox: !!this.statusBox, startButton: !!this.startButton, stopButton: !!this.stopButton,
-                clearFailedButton: !!this.clearFailedButton, speedSelect: !!this.speedSelect
-             });
-             if (!this.targetInput || !this.statusBox || !this.startButton || !this.stopButton || !this.clearFailedButton || !this.speedSelect) {
-                 throw new Error("One or more required UI elements not found within the panel.");
-             }
-        }
-
-        _setupEventListeners() {
-            if (!this.targetInput || !this.startButton || !this.stopButton || !this.clearFailedButton || !this.speedSelect) {
-                throw new Error("Cannot setup listeners: Required UI elements missing.");
-            }
-
-            this.targetInput.addEventListener('input', () => this._updateSuggestions());
-            this.targetInput.addEventListener('keydown', e => this._handleSuggestionKey(e));
-            this.targetInput.addEventListener('focus', () => this._updateSuggestions());
-
-            document.addEventListener('click', (e) => {
-                 if (this.panel && !this.panel.contains(e.target) && this.suggestionBox && !this.suggestionBox.contains(e.target)) {
-                    if (this.suggestionBox.style.display === 'block') this.suggestionBox.style.display = 'none';
-                }
-            }, true);
-
-            this.startButton.onclick = () => this.startAutoCombo();
-            this.stopButton.onclick = () => this.stop();
-            this.clearFailedButton.onclick = () => this._clearFailedCombos();
-            this.speedSelect.onchange = () => this._handleSpeedChange();
-        }
-
-        _loadFailedCombos() {
-            const savedCombos = localStorage.getItem(CONFIG.storageKeyFailedCombos);
-            let loadedCount = 0;
-            if (savedCombos) {
-                try {
-                    const parsedCombos = JSON.parse(savedCombos);
-                    if (Array.isArray(parsedCombos)) {
-                        const validCombos = parsedCombos.filter(item => typeof item === 'string');
-                        this.failedCombos = new Set(validCombos);
-                        loadedCount = this.failedCombos.size;
-                        if (loadedCount > 0) {
-                             this.logStatus(`📚 Loaded ${loadedCount} fails`, 'status-success');
-                        }
-                    } else {
-                         localStorage.removeItem(CONFIG.storageKeyFailedCombos);
-                         this.failedCombos = new Set();
-                    }
-                } catch (e) {
-                    console.error('[AutoCombo] Error parsing failed combos:', e);
-                    localStorage.removeItem(CONFIG.storageKeyFailedCombos);
-                    this.failedCombos = new Set();
-                }
-            } else {
-                 this.failedCombos = new Set();
-            }
-             console.log(`[AutoCombo] Failed combos loaded: ${loadedCount}`);
-        }
-
-        _saveFailedCombos() {
-            if (this.failedCombos.size === 0) {
-                localStorage.removeItem(CONFIG.storageKeyFailedCombos);
-                return;
-            }
-            try {
-                localStorage.setItem(CONFIG.storageKeyFailedCombos, JSON.stringify(Array.from(this.failedCombos)));
-            } catch (e) {
-                console.error('[AutoCombo] Error saving failed combos:', e);
-                this.logStatus('❌ Save error!', 'status-error');
-            }
-        }
-
-        _clearFailedCombos() {
-            const count = this.failedCombos.size;
-            this.failedCombos.clear();
-            localStorage.removeItem(CONFIG.storageKeyFailedCombos);
-            this.logStatus(`🗑️ Cleared ${count} fails`, 'status-success');
-             console.log(`[AutoCombo] Cleared ${count} failed combos.`);
-        }
-
-        _loadSpeed() {
-            const savedSpeed = localStorage.getItem(CONFIG.storageKeySpeed);
-            if (savedSpeed && CONFIG.speedPresets[savedSpeed]) {
-                this.currentSpeed = savedSpeed;
-            } else {
-                this.currentSpeed = 'normal';
-            }
-            if (this.speedSelect) {
-                this.speedSelect.value = this.currentSpeed;
-            }
-            this._applySpeed();
-            console.log(`[AutoCombo] Speed loaded: ${this.currentSpeed}`);
-        }
-
-        _handleSpeedChange() {
-            if (!this.speedSelect) return;
-            this.currentSpeed = this.speedSelect.value;
-            localStorage.setItem(CONFIG.storageKeySpeed, this.currentSpeed);
-            this._applySpeed();
-            this.logStatus(`⚙️ ${this.currentSpeed.toUpperCase()}`, 'status-success');
-            console.log(`[AutoCombo] Speed changed to: ${this.currentSpeed}`);
-        }
-
-        _applySpeed() {
-            const preset = CONFIG.speedPresets[this.currentSpeed];
-            if (!preset) {
-                console.warn(`[AutoCombo] Invalid speed preset: ${this.currentSpeed}, using normal`);
-                this.currentSpeed = 'normal';
-                return this._applySpeed();
-            }
-            CONFIG.interComboDelay = preset.interComboDelay;
-            CONFIG.postComboScanDelay = preset.postComboScanDelay;
-            CONFIG.dragStepDelay = preset.dragStepDelay;
-            CONFIG.dragBetweenDelay = preset.dragBetweenDelay;
-        }
-
-        // --- Core Logic ---
-
-        scanItems() {
-            clearTimeout(this.scanDebounceTimer);
-            this.scanDebounceTimer = null;
-
-            const items = document.querySelectorAll(CONFIG.itemSelector);
-            let changed = false;
-            const currentNames = new Set();
-            const oldSize = this.itemElementMap.size;
-
-            for (const el of items) {
-                if (!el) continue;
-                // Use data-item-text attribute for clean element name
-                const name = el.getAttribute('data-item-text');
-                if (name && typeof name === 'string') {
-                    currentNames.add(name);
-                    if (!this.itemElementMap.has(name) || this.itemElementMap.get(name) !== el) {
-                        this.itemElementMap.set(name, el);
-                        changed = true;
-                    }
-                }
-            }
-
-            const currentKeys = Array.from(this.itemElementMap.keys());
-            for (const name of currentKeys) {
-                if (!currentNames.has(name)) {
-                    this.itemElementMap.delete(name);
-                    changed = true;
-                }
-            }
-
-            if (changed && !this.isRunning) {
-                const newSize = this.itemElementMap.size;
-                const diff = newSize - oldSize;
-                let logMsg = `🔍 ${newSize} items`;
-                if (diff > 0) logMsg += ` (+${diff})`; else if (diff < 0) logMsg += ` (${diff})`;
-                this.logStatus(logMsg);
-                console.log(`[AutoCombo] ${logMsg}`);
-                 if (document.activeElement === this.targetInput) {
-                     this._updateSuggestions();
-                 }
-            }
-            return changed;
-        }
-
-        observeDOM() {
-             const targetNode = document.querySelector(CONFIG.gameContainerSelector);
-             if (!targetNode) {
-                  console.error("[AutoCombo] Cannot observe DOM: Target node not found:", CONFIG.gameContainerSelector);
-                  this.logStatus(`❌ Observer error!`, "status-error");
-                  return;
-             }
-
-            const observer = new MutationObserver((mutationsList) => {
-                 let potentiallyRelevantChange = false;
-                 for (const mutation of mutationsList) {
-                     if (mutation.type === 'childList') {
-                         const checkNodes = (nodes) => {
-                            if (!nodes) return false;
-                            for(const node of nodes) {
-                                if (node.nodeType === Node.ELEMENT_NODE && node.matches && node.matches(CONFIG.itemSelector)) return true;
-                            }
-                            return false;
-                         }
-                         if (checkNodes(mutation.addedNodes) || checkNodes(mutation.removedNodes)) {
-                            potentiallyRelevantChange = true;
-                            break;
-                         }
-                     }
-                 }
-
-                if (potentiallyRelevantChange) {
-                    clearTimeout(this.scanDebounceTimer);
-                    this.scanDebounceTimer = setTimeout(() => {
-                        this.scanItems();
-                    }, CONFIG.scanDebounceDelay);
-                }
-            });
-
-            observer.observe(targetNode, {
-                childList: true,
-                subtree: true,
-             });
-             console.log("[AutoCombo] DOM Observer started on:", targetNode);
-        }
-
-        stop() {
-            if (!this.isRunning) return;
-            this.isRunning = false;
-            clearTimeout(this.scanDebounceTimer);
-            this.logStatus('⛔ Stopped', 'status-stopped');
-            console.log('[AutoCombo] Stop requested.');
-        }
-
-        async startAutoCombo() {
-            if (this.isRunning) {
-                this.logStatus('⚠️ Already running', 'status-warning'); return;
-            }
-
-            const targetName = this.targetInput.value.trim();
-            if (!targetName) {
-                this.logStatus('⚠️ Enter Target', 'status-warning'); this.targetInput.focus(); return;
-            }
-
-            this.scanItems();
-            let targetElement = this.getElement(targetName);
-            if (!targetElement || !document.body.contains(targetElement)) {
-                this.logStatus(`⚠️ "${targetName}" not found`, 'status-warning'); this.targetInput.focus(); return;
-            }
-
-            const itemsToProcess = Array.from(this.itemElementMap.keys()).filter(name => name !== targetName);
-            if (itemsToProcess.length === 0) {
-                this.logStatus(`ℹ️ No items to combine`); return;
-            }
-
-            this.isRunning = true;
-            this.logStatus(`🚀 Starting... (${itemsToProcess.length})`, 'status-running');
-            console.log(`[AutoCombo] Starting combinations for "${targetName}". Items: ${itemsToProcess.length}. Fails: ${this.failedCombos.size}`);
-
-            let processedCount = 0, attemptedCount = 0, successCount = 0, skippedCount = 0;
-            const totalPotentialCombos = itemsToProcess.length;
-
-            for (const itemName of itemsToProcess) {
-                if (!this.isRunning) break;
-
-                processedCount++;
-                const progress = `${processedCount}/${totalPotentialCombos}`;
-
-                const comboKey = this._getComboKey(targetName, itemName);
-                if (this.failedCombos.has(comboKey)) {
-                    if (processedCount % 20 === 0 || processedCount === totalPotentialCombos) {
-                        this.logStatus(`⏭️ Skipping... ${progress}`, 'status-running');
-                    }
-                     console.log(`[AutoCombo] ${progress} Skipping known fail: ${targetName} + ${itemName}`);
-                     skippedCount++;
-                    await new Promise(res => setTimeout(res, 2));
-                    continue;
-                }
-
-                targetElement = this.getElement(targetName);
-                if (!targetElement || !document.body.contains(targetElement)) {
-                    this.logStatus(`⛔ Target lost!`, 'status-error');
-                    console.error(`[AutoCombo] Target element "${targetName}" disappeared mid-process.`);
-                    this.isRunning = false; break;
-                }
-
-                const sourceElement = this.getElement(itemName);
-                if (!sourceElement || !document.body.contains(sourceElement)) {
-                    this.logStatus(`⚠️ Skip ${progress}`, 'status-warning');
-                    console.warn(`[AutoCombo] ${progress} Skipping "${itemName}": Element not found/removed.`);
-                    continue;
-                }
-
-                this.logStatus(`⏳ ${progress}`, 'status-running');
-                console.log(`[AutoCombo] ${progress} Attempting: ${targetName} + ${itemName}`);
-                attemptedCount++;
-
-                const itemsBeforeCombo = new Set(this.itemElementMap.keys());
-
-                try {
-                    await this.simulateCombo(sourceElement, targetElement);
-                    if (!this.isRunning) break;
-
-                    await new Promise(res => setTimeout(res, CONFIG.postComboScanDelay));
-                    if (!this.isRunning) break;
-
-                    this.scanItems();
-                    const itemsAfterCombo = new Set(this.itemElementMap.keys());
-
-                    let newItemFound = null;
-                    for (const itemAfter of itemsAfterCombo) {
-                        if (!itemsBeforeCombo.has(itemAfter)) { newItemFound = itemAfter; break; }
-                    }
-
-                    if (newItemFound) {
-                        successCount++;
-                        this.logStatus(`✨ ${newItemFound}!`, 'status-success');
-                        console.log(`[AutoCombo] SUCCESS! New: ${newItemFound} from ${targetName} + ${itemName}`);
-                    } else {
-                        const targetStillExists = itemsAfterCombo.has(targetName);
-                        const sourceStillExists = itemsAfterCombo.has(itemName);
-                        this.logStatus(`❌ Fail ${progress}`, 'status-running');
-                        console.log(`[AutoCombo] FAILURE: No new item from ${targetName} + ${itemName}. T:${targetStillExists}, S:${sourceStillExists}`);
-                        this.failedCombos.add(comboKey);
-                        this._saveFailedCombos();
-                    }
-
-                    await new Promise(res => setTimeout(res, CONFIG.interComboDelay));
-
-                } catch (error) {
-                    this.logStatus(`❌ Error ${progress}`, 'status-error');
-                    console.error(`[AutoCombo] Error during combo for "${itemName}" + "${targetName}":`, error);
-                }
-            }
-
-            if (this.isRunning) {
-                this.isRunning = false;
-                const summary = `✅ Done! New: ${successCount}`;
-                this.logStatus(summary, 'status-success');
-                console.log(`[AutoCombo] Done. Tried: ${attemptedCount}, New: ${successCount}, Skipped: ${skippedCount}.`);
-            } else {
-                const summary = `⛔ Stopped. New: ${successCount}`;
-                this.logStatus(summary, 'status-stopped');
-                console.log(`[AutoCombo] Stopped. Tried: ${attemptedCount}, New: ${successCount}, Skipped: ${skippedCount}.`);
-            }
-        }
-
-
-        // --- Simulation ---
-
-        async simulateCombo(sourceElement, targetElement) {
-            if (!this.isRunning) return;
-
-            // Get center of the canvas/screen for combining
-            const centerX = Math.floor(window.innerWidth / 2);
-            const centerY = Math.floor(window.innerHeight / 2);
-
-            // Drag target element to center first (offset upward)
-            await this.simulateDrag(targetElement, centerX, centerY - 30, 'rgba(255, 100, 50, 0.7)');
-            
-            // Small delay between drags (using speed setting)
-            await new Promise(res => setTimeout(res, CONFIG.dragBetweenDelay));
-            if (!this.isRunning) return;
-
-            // Drag source element to center (offset downward) to combine
-            await this.simulateDrag(sourceElement, centerX, centerY + 2, 'rgba(50, 150, 255, 0.7)');
-        }
-
-        async simulateDrag(element, dropX, dropY, markerColor) {
-            if (!this.isRunning || !element || !document.body.contains(element)) {
-                 console.warn("[AutoCombo] simulateDrag: Element invalid or drag stopped.");
-                 return;
-            }
-
-            const rect = element.getBoundingClientRect();
-            if (rect.width === 0 || rect.height === 0) {
-                 throw new Error(`Dragged elem "${element.getAttribute('data-item-text') || 'unknown'}" has no size.`);
-            }
-
-            // Starting position (center of element)
-            const startX = rect.left + rect.width / 2;
-            const startY = rect.top + rect.height / 2;
-
-            // Show debug markers
-            this.showDebugMarker(startX, startY, markerColor);
-            this.showDebugMarker(dropX, dropY, markerColor);
-
-            try {
-                // Mouse Down on element
-                element.dispatchEvent(new MouseEvent('mousedown', {
-                    bubbles: true,
-                    clientX: startX,
-                    clientY: startY
-                }));
-                
-                await new Promise(res => setTimeout(res, CONFIG.dragStepDelay));
-                if (!this.isRunning) return;
-
-                // Mouse Move to drop position
-                document.dispatchEvent(new MouseEvent('mousemove', {
-                    bubbles: true,
-                    clientX: dropX,
-                    clientY: dropY
-                }));
-                
-                await new Promise(res => setTimeout(res, CONFIG.dragStepDelay));
-                if (!this.isRunning) return;
-
-                // Mouse Up at drop position
-                document.dispatchEvent(new MouseEvent('mouseup', {
-                    bubbles: true,
-                    clientX: dropX,
-                    clientY: dropY
-                }));
-                
-                console.log(`[AutoCombo] Dragged ${element.getAttribute('data-item-text') || 'unknown'} from (${Math.round(startX)}, ${Math.round(startY)}) to (${Math.round(dropX)}, ${Math.round(dropY)})`);
-
-            } catch (error) {
-                 console.error('[AutoCombo] Error during drag simulation step:', error);
-                 throw new Error(`Drag sim failed: ${error.message}`);
-            }
-        }
-
-        // --- UI & Suggestions ---
-
-        _updateSuggestions() {
-            if (!this.targetInput || !this.suggestionBox) return;
-            const query = this.targetInput.value.toLowerCase();
-            if (!query) {
-                this.suggestions = []; this.suggestionBox.style.display = 'none'; return;
-            }
-            const currentItems = Array.from(this.itemElementMap.keys());
-            this.suggestions = currentItems
-                .filter(name => name.toLowerCase().includes(query))
-                .sort((a, b) => {
-                    const aI = a.toLowerCase().indexOf(query), bI = b.toLowerCase().indexOf(query);
-                    if (aI !== bI) return aI - bI; return a.localeCompare(b);
-                })
-                .slice(0, CONFIG.suggestionLimit);
-            this.suggestionIndex = -1;
-            this._updateSuggestionUI();
-        }
-
-        _updateSuggestionUI() {
-            if (!this.targetInput || !this.suggestionBox) return;
-            this.suggestionBox.innerHTML = '';
-            if (!this.suggestions.length) { this.suggestionBox.style.display = 'none'; return; }
-
-            const inputRect = this.targetInput.getBoundingClientRect();
-            Object.assign(this.suggestionBox.style, {
-                position: 'absolute', display: 'block',
-                top: `${inputRect.bottom + window.scrollY}px`, left: `${inputRect.left + window.scrollX}px`,
-                width: `${inputRect.width}px`, maxHeight: '120px', overflowY: 'auto', zIndex: CONFIG.suggestionZIndex,
-            });
-
-            this.suggestions.forEach((name, index) => {
-                const div = document.createElement('div');
-                div.textContent = name; div.className = CONFIG.suggestionItemClass; div.title = name;
-                div.addEventListener('mousedown', (e) => { e.preventDefault(); this._handleSuggestionSelection(name); });
-                this.suggestionBox.appendChild(div);
-            });
-            this._updateSuggestionHighlight();
-        }
-
-        _handleSuggestionKey(e) {
-            if (!this.suggestionBox || this.suggestionBox.style.display !== 'block' || !this.suggestions.length) {
-                if (e.key === CONFIG.keyEnter) { e.preventDefault(); this.startAutoCombo(); } return;
-            }
-            const numSuggestions = this.suggestions.length;
-            switch (e.key) {
-                case CONFIG.keyArrowDown: case CONFIG.keyTab:
-                    e.preventDefault(); this.suggestionIndex = (this.suggestionIndex + 1) % numSuggestions; this._updateSuggestionHighlight(); break;
-                case CONFIG.keyArrowUp:
-                    e.preventDefault(); this.suggestionIndex = (this.suggestionIndex - 1 + numSuggestions) % numSuggestions; this._updateSuggestionHighlight(); break;
-                case CONFIG.keyEnter:
-                    e.preventDefault();
-                    if (this.suggestionIndex >= 0) this._handleSuggestionSelection(this.suggestions[this.suggestionIndex]);
-                    else { this.suggestionBox.style.display = 'none'; this.startAutoCombo(); } break;
-                case 'Escape':
-                    e.preventDefault(); this.suggestionBox.style.display = 'none'; break;
-            }
-        }
-
-        _updateSuggestionHighlight() {
-            if (!this.suggestionBox) return;
-            Array.from(this.suggestionBox.children).forEach((child, i) => child.classList.toggle('highlighted', i === this.suggestionIndex));
-            this._scrollSuggestionIntoView();
-        }
-
-        _scrollSuggestionIntoView() {
-             if (!this.suggestionBox) return;
-             const highlightedItem = this.suggestionBox.querySelector(`.${CONFIG.suggestionItemClass}.highlighted`);
-             if (highlightedItem) {
-                 setTimeout(() => highlightedItem.scrollIntoView?.({ block: 'nearest' }), CONFIG.suggestionHighlightDelay);
-             }
-        }
-
-        _handleSuggestionSelection(name) {
-            if (!this.targetInput || !this.suggestionBox) return;
-            this.targetInput.value = name; this.suggestionBox.style.display = 'none';
-            this.suggestions = []; this.targetInput.focus();
-        }
-
-        // --- Utilities ---
-
-        getElement(name) { return this.itemElementMap.get(name) || null; }
-
-        showDebugMarker(x, y, color = 'red', duration = CONFIG.debugMarkerDuration) {
-            const dot = document.createElement('div');
-            dot.className = CONFIG.debugMarkerClass;
-            Object.assign(dot.style, {
-                top: `${y - 4}px`, left: `${x - 4}px`, backgroundColor: color, position: 'absolute', opacity: '0.8'
-            });
-            document.body.appendChild(dot);
-            setTimeout(() => {
-                dot.style.opacity = '0';
-                setTimeout(() => dot.remove(), 500);
-            }, duration - 500);
-        }
-
-        logStatus(msg, type = 'info') {
-             if (!this.statusBox) { console.log('[AutoCombo Status]', msg); return; }
-            this.statusBox.textContent = msg;
-            this.statusBox.className = `${CONFIG.statusBoxId}`;
-            if (type !== 'info') this.statusBox.classList.add(`status-${type}`);
-            if (type !== 'info' && type !== 'status-running' || !this.isRunning) {
-                 console.log(`[AutoCombo Status - ${type}]`, msg);
-            }
-        }
-
-        _getComboKey(name1, name2) { return [name1, name2].sort().join('||'); }
-    }
-
-    // --- Initialization ---
-    if (window.infCraftAutoComboInstance) {
-        console.warn("[AutoCombo] Instance already running. Aborting new init.");
-    } else {
-        console.log("[AutoCombo] Creating new instance...");
-        window.infCraftAutoComboInstance = new AutoTargetCombo();
-    }
-
-})();
+<html lang="en-GB" data-ok="1" data-scrolling="0" data-audio="1" data-loading="1" data-subpage="0" data-subfolder="coder-serial-killer-quiz/" data-nav="1" style="height: 911px;"><head>
+
+
+<!-- 🏷 misc metadata -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0,shrink-to-fit=no,maximum-scale=1.0,user-scalable=no,interactive-widget=resizes-content">
+<title>Programming Language Inventor or Serial Killer? 💻🔪</title><!-- v2 -->
+<meta name="description" content="Try to spot who liked hacking away at corpses rather than computers">
+<link rel="canonical" href="https://vole.wtf/coder-serial-killer-quiz/">
+<link rel="license" href="https://vole.wtf/blah/#copyright">
+<base target="_top">
+
+<!-- 👤 social -->
+<meta name="fediverse:creator" content="@VOLEwtf@crispsandwi.ch">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="VOLE.wtf">
+<meta property="og:title" content="Programming Language Inventor or Serial Killer? 💻🔪">
+<meta property="og:description" content="Try to spot who liked hacking away at corpses rather than computers">
+<meta property="og:image" content="https://vole.wtf/coder-serial-killer-quiz/social.jpg?v=2">
+<meta property="og:url" content="https://vole.wtf/coder-serial-killer-quiz/">
+<meta property="og:locale" content="en_GB">
+
+<!-- 🖼 icons etc -->
+<link rel="icon" href="https://vole.wtf/favicon.png">
+<link rel="apple-touch-icon" href="https://vole.wtf/apple-touch-icon.png">
+<meta name="theme-color" content="#291D19">
+<meta name="color-scheme" content="only light">
+
+<!-- 🤖 schema -->
+<script type="application/ld+json">
+	{"@context":"https:\/\/schema.org","@graph":[{"@type":"Organization","@id":"https:\/\/vole.wtf\/#\/schema\/organization\/1","url":"https:\/\/vole.wtf\/","name":"VOLE.wtf","logo":{"@type":"ImageObject","@id":"https:\/\/vole.wtf\/#\/schema\/image\/icon","url":"https:\/\/vole.wtf\/apple-touch-icon.png","width":192,"height":192,"caption":"VOLE.wtf"},"image":{"@id":"https:\/\/vole.wtf\/#\/schema\/image\/icon"},"sameAs":["https:\/\/crispsandwi.ch\/@VOLEwtf","https:\/\/bsky.app\/profile\/vole.wtf","https:\/\/spacehey.com\/volewtf","https:\/\/www.tiktok.com\/@volewtf"]},{"@type":"WebSite","@id":"https:\/\/vole.wtf\/#\/schema\/website\/1","url":"https:\/\/vole.wtf\/","name":"VOLE.wtf","publisher":{"@id":"https:\/\/vole.wtf\/#\/schema\/organization\/1"}},{"@type":"WebPage","@id":"https:\/\/vole.wtf\/coder-serial-killer-quiz\/","url":"https:\/\/vole.wtf\/coder-serial-killer-quiz\/","inLanguage":"en-GB","name":"Programming Language Inventor or Serial Killer? \ud83d\udcbb\ud83d\udd2a","description":"Try to spot who liked hacking away at corpses rather than computers","image":{"@type":"ImageObject","@id":"https:\/\/vole.wtf\/coder-serial-killer-quiz\/social.jpg","url":"https:\/\/vole.wtf\/coder-serial-killer-quiz\/social.jpg?v=2","caption":"Programming Language Inventor or Serial Killer? \ud83d\udcbb\ud83d\udd2a"},"primaryImageOfPage":{"@id":"https:\/\/vole.wtf\/coder-serial-killer-quiz\/social.jpg"},"thumbnailUrl":"https:\/\/vole.wtf\/coder-serial-killer-quiz\/thumb.jpg?v=2","isPartOf":{"@id":"https:\/\/vole.wtf\/#\/schema\/website\/1"}}]}
+</script>
+
+<!-- 🆗 js present -->
+<script>
+	if ( (! document.all) && (window.requestAnimationFrame) ) document.documentElement.setAttribute('data-ok', '1');
+</script>
+
+<!-- 🚀 priority preloads -->
+<link rel="preload" href="/_common/common.css?v=1.8" as="style">
+<link rel="preload" href="/_common/sunday-comics.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="/_common/sunday-comics-bold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="/_common/disposable-digi.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<link rel="preload" href="/_common/common.js?v=1.8" as="script">
+<link rel="preload" href="/_common/common-audio2.js?v=1.8" as="script">
+
+<!-- 💈 styling -->
+<link rel="stylesheet" href="/_common/common.css?v=1.8">
+<style>
+	main {font-size: 66.666px;width: 20em;height: 15.54em;background: #291D19 url('main.jpg?v=2') center center no-repeat;background-size: 100% 100%;position: absolute;top: 50%;left: 50%;margin: -7.77em 0 0 -10em;padding: 0;color: #806858;-webkit-transition: -webkit-transform 0.75s;transition: -webkit-transform 0.75s;transition: transform 0.75s;transition: transform 0.75s, -webkit-transform 0.75s;-webkit-transform: scale(1.2) rotate(5deg);transform: scale(1.2) rotate(5deg);cursor: default;}main[class] {-webkit-transform: none;transform: none;}main.question {-webkit-transform: translate(3%, 1%);transform: translate(3%, 1%);}main.question.question2 {-webkit-transform: translate(-3%, -1%);transform: translate(-3%, -1%);}@media (max-width: 959px) {main {font-size: 6.95vw;}}@media (max-height: 479px) {main {font-size: 13.75vh;}}@media (max-aspect-ratio: 1/1) and (max-width: 639px) {main {font-size: 15vw;}main.intro, main.question {-webkit-transform: translate(3.65em, 1%);transform: translate(3.65em, 1%);}main.intro.intro2, main.question.question2, main.result {-webkit-transform: translate(-4em, -1%);transform: translate(-4em, -1%);}}header, section, footer {position: absolute;top: 0;bottom: 0;left: 0;right: 0;overflow: hidden;-webkit-transition: bottom 1s linear;transition: bottom 1s linear;}header h1, #picShadow, section dt {position: absolute;left: 3.5em;top: 4.01em;width: 5.38em;height: 5.35em;-webkit-transform: rotate(-8.6deg) skew(-0.85deg, 0);transform: rotate(-8.6deg) skew(-0.85deg, 0);}header p, section dd, footer div {position: absolute;width: 5.3em;height: 4.5em;left: 11.4em;top: 4.75em;-webkit-transform: rotate(6deg);transform: rotate(6deg);}header p span, section dd span, footer li {display: block;font-size: 0.42em;letter-spacing: -0.025em;line-height: 1.4;}main.question header {bottom: 100%;}header h1 > span {display: block;line-height: 0.8;text-align: center;}header h1 > span:nth-child(1), header h1 > span:nth-child(2), header h1 > span:nth-child(3) {color: #22dd33;font-family: '_fontPixel', sans-serif;font-size: 0.75em;text-transform: uppercase;}header h1 > span:nth-child(1) span:nth-child(2), header h1 > span:nth-child(2) span:nth-child(2), header h1 > span:nth-child(3) span:nth-child(2) {color: rgba(0, 0, 0, 0);}header h1 > span:nth-child(1) {padding-top: 0.35em;}header h1 > span:nth-child(2) {font-size: 1.028em;}header h1 > span:nth-child(3) {font-size: 1.11em;}header h1 > span:nth-child(4) {visibility: hidden;font-size: 0.7em;color: #707088;margin: -0.05em 0 0.1em 0;font-weight: bold;}header h1 > span:nth-child(5), header h1 > span:nth-child(6) {visibility: hidden;font-size: 1.25em;color: #ff3322;width: 82%;line-height: 0.75;}header h1 > span:nth-child(7) {visibility: hidden;position: absolute;right: 3.4%;bottom: 4.7%;font-size: 2.4em;color: #707088;}header a {display: none;position: absolute;left: 13.55em;top: 9.35em;-webkit-transform: rotate(-9deg);transform: rotate(-9deg);}header a span {font-weight: bold;font-size: 0.6em;letter-spacing: -0.025em;border-bottom: 3px dotted currentColor;color: #585868;}header p {display: none;}section {bottom: 100%;}main.question section {bottom: 0;}section dd {display: none;}section dt img {display: block;width: 100%;height: 100%;opacity: 0;-webkit-transition: opacity 0.5s;transition: opacity 0.5s;}section dt img.on {opacity: 1;}section dt span {display: none;font-size: 0.42em;white-space: nowrap;color: rgba(32, 21, 20, 0.7);letter-spacing: -0.025em;padding: 1.2em 0 0 0;}section a#buttonAnswer1 {display: none;position: absolute;left: 3.95em;top: 9.72em;width: 2.85em;height: 1.4em;color: #424252;border-bottom: 3px dotted currentColor;-webkit-transform: rotate(-8deg);transform: rotate(-8deg);}section a#buttonAnswer1 > span {display: inline-block;vertical-align: top;font-family: '_fontPixel', sans-serif;font-size: 0.45em;letter-spacing: -0.025em;text-transform: uppercase;line-height: 0.9;text-align: center;padding: 0.15em 0 0 0;}section a#buttonAnswer2 {display: none;position: absolute;left: 6.93em;top: 9.3em;width: 2.65em;height: 1.4em;color: #4c4c5c;border-bottom: 3px dotted currentColor;-webkit-transform: rotate(-8.6deg);transform: rotate(-8.6deg);}section a#buttonAnswer2 > span {display: inline-block;vertical-align: top;font-size: 0.6em;line-height: 0.85;text-align: center;padding: 0.25em 0 0 0;}section a#buttonNext {display: none;position: absolute;left: 13.55em;top: 9.35em;-webkit-transform: rotate(-9deg);transform: rotate(-9deg);}section a#buttonNext span {font-weight: bold;font-size: 0.6em;letter-spacing: -0.025em;border-bottom: 3px dotted currentColor;color: #585868;}section a#buttonNext span:nth-child(2) {display: none;}footer {bottom: 100%;}main.result footer {bottom: 0;}footer ol, footer li {display: none;list-style: none;}footer h2 {display: none;line-height: 1;}footer h2 span {font-size: 0.4em;vertical-align: middle;}footer h2 span:nth-child(1) {font-weight: bold;font-size: 1em;padding: 0 0 0 0.2em;}footer h2 span:nth-child(3) {font-size: 0.7em;}#_share {font-size: 1em;display: none;left: 11.2em;top: 8em;-webkit-transform: rotate(6deg);transform: rotate(6deg);}@media (max-width: 900px) {#_share {left: 7em;top: 61%;-webkit-transform: none;transform: none;}}@media (max-aspect-ratio: 1/1) and (max-width: 639px) {#_share {left: 10.85em;top: 61%;-webkit-transform: none;transform: none;}}#picShadow {background: radial-gradient(ellipse at 55% 50%, rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, 0.5) 70%, rgba(0, 0, 0, 0.9) 100%);pointer-events: none;}#cornerShadow {position: absolute;top: 100%;left: 100%;width: 15em;height: 15em;background: radial-gradient(ellipse at 50% 50%, rgba(26, 12, 2, 0.8) 10%, rgba(26, 12, 2, 0.2) 45%, rgba(26, 12, 2, 0) 65%);pointer-events: none;opacity: 0;-webkit-transition: -webkit-transform 3s, opacity 3s;transition: -webkit-transform 3s, opacity 3s;transition: transform 3s, opacity 3s;transition: transform 3s, -webkit-transform 3s, opacity 3s;-webkit-transform: translate(-45%, -45%);transform: translate(-45%, -45%);}#cornerShadow.on {opacity: 1;-webkit-transform: translate(-57%, -57%);transform: translate(-57%, -57%);}#flyShadow {position: absolute;top: 80%;left: -10%;width: 2em;height: 2em;background: radial-gradient(ellipse at 50% 50%, rgba(26, 12, 2, 0.05) 10%, rgba(26, 12, 2, 0) 65%);pointer-events: none;-webkit-transition: left 1s linear, top 1s ease-in;transition: left 1s linear, top 1s ease-in;}#flyShadow.on {left: 80%;top: -10%;}#_loading {background: #000000 url('data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/2wCEAAkJCQkJCQ8JCQ8VDw8PFR0VFRUVHSQdHR0dHSQsJCQkJCQkLCwsLCwsLCw0NDQ0NDQ9PT09PUVFRUVFRUVFRUUBCwsLERARHhAQHkgxKDFISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISEhISP/CABEIAYUB9AMBIgACEQEDEQH/xAAbAAACAwEBAQAAAAAAAAAAAAAAAwIEBQEGB//aAAgBAQAAAAD4cB0A53WdHkq+d7vvn6zbpOD3K9DfJJnblUFt1WGd5rzGrteL2vY80ypl49Spn06QHQANK7CK8v0u3jZqZ6LZykxforslwbZs00IlrWXdyaXi71nA9PtN0KWRmUKlHPrAHQ50u6iKsdDZqZtOFq9YlOTJ+idJM2SvJpK5o27HfO2Pl0fomPU9TO/HHys2pQoJAOhwGXK9e9suqVoScXpMnNnpWSVOUb7cta711yvM+g+ZYF3Y5DQ9LoZeNl06VNAAAB1sJ29wRSrzerWZJ02ejY5XJK0beVFbr7F+E9ZzyaMLP4zR9zcwszOo00AAABJlu3cmqmtzK+m+TG99M2cYJXq6GRLk7U5+RxPoNO55fw9Alue1VjYufTQAAADbl5jrVWqdlWv3OsLPo2rJVDW0sRkb01yT4rY1b9DyPmakGXte1k5tSoAAAD9ixJ78+u05RsbEp1NvenSezKsWdCn3luych5te7dV5NfFY2CbrKdXLAAAB+z1t7mNGxaKS96VXvpq8869uxLbai0ye6zDkZyT4hu2/I+fc9XGjXwAAABndV9qzTzWvnarL3mY3PUZOfQb6resudKmPpSsclyMkYfnfRyPE4vpL1NHl5wAAOy7q6Nwya1my7TdO03HTyrUzWaXp9dui6lONPsp06k9jkYLlVzvOVtOqjywAMhPnJ90Np7INaJqU6lbU9JTo38bMtO0N3e3lQT5yldv50L0NCzxudFVenRrU63mgJTmtl91pruor1a1dMAC577zMn0KzlXdn1W8lSMm2SpwaX7ke0ORrU6leivyQdZyXLO/l10pXwAAAZ9M8VTss2EY299FsTlKUVeZXpovdlZ5HPcqrRrJQrw4S7zo3XwAAAAAD6Vl41e562t5H1X0HjZTnYFxp1W970VnWEopV4Kh84Cc1873e88AAAAAe+g/Alez6n0D1ku95ZeC6lXjJwfzN4LrJivny3VqZ048lD0XnQAAAAD2G1RryRT0fcbUhZebwXWQmTJshXpRVGBHnyzYoY8+RYv0GFAAAAAD0ns/OsUrauei0OcUy48itCK5JroVavIV66ps+X61XEkRnDcykAAAAAa/0zJ0r0LmVtXYi5TdYF10JWxjFpXONestcfmWpHAOwnHWqUwAAAALn1dd+5yxmbLlnI84+wVk1YsnOSE8nBC4I+W6ZhLekZb7mgAAAAM+sX0pfdjtMhzpCK7VhFSudmztWM1yIIj8j0E4vHL7a5cxwAAAAD6b6mxl59lfp3HSXBcLMqaIxOsp8aSkKj8bvZlMlKVynrYYAAAAB7r1ViOUc9gzvZBOSo2qylVU9t1SA3jZc+LvyY8GFyluYAAAAAB7D255+ErHuJdkdXKcZdQnikss0HV1shOwfF0V+cJxt1tzAAAAAAPQ/RbHn6tm363pPjV8mO5VTHkXzzWoVMGHxyhwCUZd28OIAAAAGn9Ov51bA9L6aR3ruR7NglPFJuTzIwCHe9+NVAAA3shAAAAAFn6jrZHkqHvPTNDrpciyZFS4Kc6rU5yCx0/hywAA2KlIAAAACf0/ah4rzP1DasM6Ol1bGEVLjF0V0oxjHrpfCAAANLuYAAAddZuXdPdezvyz6PevWpyZyXJNlxPVqfWlWrEg6fDAAALl3GAJvtW7t63YdOcpVqXqPnbcqz6XlrQoaj2WGthKE+5WlCrKSuRPh4AAD97HfZtWrL2snKUpS7KWP536O7E8jk6nodx2D7SMZuQvse18vf6h7IIO/CQAAJesbOUpznOcpTlKUu9z/AA3pvS5NFt67o287a4iy7tVspVcjUdXZPlPh8RAAAPUW5dkyc5ylOcpSl0j5rDam16XC27Gj6onlyfKrJcFztsVAK8Z/EQAAD0GjKU5ylOUpzlzpxVm143AYX3X8Ff1O/GjUm9jpxrynbnAEx78SAAANjXlKczso101q9Xa0bDrPfO5cKZLRsS2tY49nJJZI7UlpPOKjH4iAAAX9mMFr5HWs+eSuaO+zpxtHj2aFu0il6j0L2UkhGXAZONeem4hGPxAAAAa6rw7OfqPReerIrrz/AHVfnb3j8snZj6Hf17kUKIqlCwcl0U+/1UefFAAABtmlw7OV/wBrmq0/N0Kf0yugd5HIUBq+jv6VmUI9TKVgRyIcuOirnxoAAAbdzjhKy76Ln5m9a+f5H06nUzrisOgrgWN3Zva8oQUuy+aFQXwm2fefHwAACV+jHgSf7a/ia/q/FeF9cnQoaSPJ1+L4Hb3rvQxZJddzZ8VBcIrHt58mAAAOugsbGMtXfjreiy/mXpdvWSvL8NXkz0WZkcJej9fGbI9ZPvOQRCEZNl8qAAA73gbEqyJ29Hup6HK8zq7eipNXzqIK9zHy3ma4WvY7NObrLDpFaInX9+TAAASdCevrvqZCrejjaOvnXGad8r9WqvLXiZvkcCIbXsRWiyXY84lfZTl8nAAA61d7dsWGdyc/SzK3oGJpLvbuouEYudMjn+ew8wGeo9Am3b7yMUp7Ns/k4AAHZz7HS1nWJ0a9eszcRQqo9Z6RCokpR7xTF+Qwlhd9TcdoSFoV2cpfLQAAOst6NbPbs2ncqVLmZrxrVq/pt6v2PYxY+KrDqWN5zLA19+endinkInfmYAAA7asrp1ebTudcmrOSF99LbqcfO2tM+w4+KF+d88oJ6+pe1Gcis58zAAAJems11VK165Wu6dcpLpx0fQypqscZcrSm+E+p7LI8rmcB+vd1NIXKHzMAAAb6S0uFBLb0HXGWa+ZRTpeilVr2JIsNZKcWyQNKPnPNxA0dHQ9BEX//xAAZAQADAQEBAAAAAAAAAAAAAAAAAQIDBAX/2gAIAQIQAAAABBni9cWIOFCpFalZsNerUQLG8ipQuIaEPfr5pma6OmwAnPIpIXGxCRtuuhca6OmwAxzBMMsKlEifRlp0PJdG4AsswTZzDxBJNG91fPXoggzyAdTy1thmk5Ymnsn6RKiadUwxxla5RKlCG6D1UnnqAAZ8pl0ANSlGQmejbcaAAE8MOtQYgz5kFehWhLoABcGC6NRggy5hN+jVuHYABx82fTqA0LHnYz0damHoAAcnIdFoGCx5xt+lo0o1AAOfz76KEDFlzDH61AZagAGPndNMQDMuUKfrgGWoSpUzzVpUKmDz5VVHrAGUpCBBy1eB1MCOR0HrgGeKYAjLZ4RupmJgdI9cAjBsKfPkutHPnEtDZQvXAFNqMgXMu/WeXmyVIptwewAKNDPMJ5jXspY83OgdNI9cASM6zTw5zffJ9hhx5BYD9UAlYAOMlkNLTt3jl5VQ6PTAFkRIKNeSRA+jteXJiVa9MAXKXDUy+RNqgfd0Tz86Z6QAuVUglHEU5dNLu6jDmR//xAAYAQEBAQEBAAAAAAAAAAAAAAAAAQIDBP/aAAgBAxAAAAA2l0zdQdywmo55tjg0XSrJb2itRibYljzA62WovWWmrOPRecs8wOtlqN6mtS2uWrnWcvKGuhSOxTWoszz3mPNF1dSpJr0S2Tei5jOY8t6EkiG/VWZbrRIzmzya3JgBr07YxZzvS26JPM1lgBr07Zwzi7NdSZ8yxmAX09GeZmbN9FmfNKkyA79t8+aXNt30iTzTPXOcgO/o3xwRnTfWMzzSaMAOvq1wkXKtd5MzyRZvADfsvAiLXcxnyFm8Fq299YlZkrXW4k8lhu2wHbRqcgvaYPGG92IW9Njk1dUzk8ga6Khvo561qWiSSPIGtY3pa6Xjx326bkszIrxhreJ2hrsnHi7dOhGc08gas6LHamN8/O7dtyYlmfOHW1VbpLc8eO+3WYSTgHTYttaKjPmnTrUxfOG+iw1buyIOHK9dSXgF6qRu71lLiVjg6ak//8QAIxAAAgMAAgICAwEBAAAAAAAAAQIAAwQFERASEzAGFEAgFf/aAAgBAQABAgD6hKT0fAl9qrxGXZdaTKjOgDWgEuXj4QISSgWFXAjNS1ZMNenDq4TVxnDa+SuY4b0dGVyLZebY0slsP2ZCQR1ZYx4rj7rr7bLPkVqyAAIAA4xrOmnShIFuWPKTUywQjdZXRyZ4jRynFJOL12JTaDeLpcHLm2M315CZZZ+wwx5A9t1rOqoiUmCCCCIKVnRir0prN6dOEFUWLGO5mXlLOO1VbdmPJWmkMhsl4uNhc2k/X3W7aLXEzmks9sIIUSqyCCAAUBQB0yqDO88vQhwoqiwG5q7tNfLYPWjXXzDcqOWz8nm5IvqFwslksh+wFmE9cirDHDk2IxChIIIABnCxZ0wEPjNLgw9WSmKBLV2Px+rbx93DPwmrEZ2r5NfH6dCXV3LZLIftWKBXTUryyOgqVOnlMAAXxQaoF7MIYh8ksFhQWCpBASObw8drq0eq0ctj1Z+oDx26nVbXpruWyEfZSGqqrCKiJoHXQnVoytBFFj4akitY9Rsb5SMcsFy1wmoFTA1qcpn421Ah1Vb8VuM0eqSnkaubN94sUj7KBXWCIqrL2ij1MuONugJccErDB3qayuymU3DbdclnvTaX7KleWz8elaqLZt0pSMN3DbMJgmMWh1Nf1gVFXBErFzvaHrIUpcM7qANVvFE1rqOy/Xl21uUFS0jNoxDKaaqrXqcEs1f64ANs5GvPpoLW8nXclQzo6OhSEfQIsBpiha0mwqqwFLFW/PnzpUKOVo4Fb7rrbLHuz6MW6l+1dDfAVT1vlJLdAs/sDZOQwpkpX4raeSxg4tDBwVEsP++oDMcCVixr2VK8/wCrVirzfrpnAQ8xVxFG274rg0rFN2DSsC1LYrVrHtveo+1tw3X7MutSVCWZhDHmjPr4vLmY2QH/AD0E6HkL640FddZqGUZwDobkn5yzn35t+V4jkd7m6kNNLOaDa2LTn5TNcqtCHG3VZry3Ga2z5v1lppYxYwuCM4aWB0dbT7f4AA7YVVphGBMa5lB1Nyb8y/MvyjbDZ/nj31VPpq0PpZnVa3XHXVx/G5za1vyl7cIwerX2Bb/lRqgAQG0MitHFkeMLqxV5EEJSOcBssfk25JtpvJ+ulqDyNa2Kyijj9Nd9v40nwIpr+FaPh/Xuo0UVZDTXlTOaFVYQReta2K4sjBlKlPPXgFjkbf8Awg8W23NfgrlS4m3Jsq/FqegBAe0gHqaTRdUKwPUoFatluaqWR0srKNWavi8rOjBCKjpH8PAWbwy31V0rdo1qn4/SIF6ndQghhNs67UmdIbhZUsIYMhrNRq+LPUuXZUp7PkQQj+D8as5Cmp9Ved9L1VLk4qroQkssqB8GGWQhop7WAWQmydmz3L+xneGCbvJ8LDMpsH8H45ZrTv0bKMmXjzRhBnZhiRG7hhjRoZ2CrA2MwcANW1br2HBwwHWsEPhYZx50j+DhH9bs2TCMZxpn2DEvRHRCz2S32BaNGjEEQRTYCSQCjq6fG1cxQSwWBYRBDOMO5f4OPfObK6LQ5AF9dCEddepXqJYpYOGDAAeBOrB6g+xDJ6MprxQRjeVPTRZavGtyS/wUtgf47ahauqvUbK/BHXXRHqZU5jh/BggghNrVll669WRk9ccEvsYxS0UXLhbkx/AJxF2KaK7KLAhosRg3t569WTqtnWwIrDv3+b2tKH5PbsQwr6453qs8KTEjzOd4/h4Js5bQL9bfNxjqPA8d+wPTisk2BVcOfbpRZACVb291YzrLLbCT4HhSCh0D+H8asSWLqsS/Wfx4DwPAhEBBYoHjH39nX0VWDTpgPBlbd95ppsEPgeBK2cCH+H8fspLruqx5eRHAJ33332IRATElkMI6PitboSWY99wT29kLHyPBitY2aWD+DiHoaaEr08pu4E9+OxASOosEMZSvTAyg3h0hUKRAZ1a3+j5486V/gxtlZDyF7XbDwQUg+BFhnUUddGNDCGWgWx1MPhiSIq+trfTxjb1/gqmFqrNOPk8Qt4oIwI8CDwQID4MIIM6QOWjA+CCigTv6uNbkl+sKuZOMr4Ov8ez8HWhmTTyuc14LhsqvVy6sWF3ze4cN2YTGAPZeWAkEAEjv2+rC3Jr/AJFS4k4mvg6+Dr4lcK0BABAZo08fs0Lr4vu7bn57Jz+jnMPL3cjRsZEcWJo/ZXS1q22W1m6xbkNkIVAjr1OvqzNppGBOMTiU4tMS0KgAgIPgeR45IZb8d9teirkMn62fJi42vjHy1NWSBAvxmshUNXpea3rZ4CsAsVYR1/sQ+KzUehOwRBBBBBBBBBB573JavFco+1td1lXGWHjrnvpe7jaa7F90NZsUhIHLXw1UhgQCGZixb2+vI0HgQQQHsEEEQHsEHuFeQyep5D9vFsPI2a+Pu1cjxOxfDJatVy3WaToGg2vf8yRW7M9vYlp39nHN2DBBAQQQQQQfb3+T5jobXnuvp3UsAirWQlT8i+HfxnLNyB5W7b7pPVEBjAp7Lclpnr0Qw6+zjW7BBB77D/I2huQbl35puYfk+N0ipG7rj3bGHH2YjT7DRn0WZl4DHxoxHOK0nfsGZ1sLhmDlLarfBhBH2YH+U6TuPJHkxvOrFVfx9+MZTQtFtOXTRust9qLNdVz1b05avYFuwV58mehArSwzsv7ByRPYMGZSlVtdsJJP20S9vbudq3ycHfsl6fFZUGtArwYLKlT0A5OvwrreNmGUWU3dl2BCx1666VSsE9oy0srsWPt7/XTLx0R4UFOOsdrFULj15LmztQXqapUazkCyEecOqjWltWxXYECEkqelDK07JDMyslgdmJ7+uqOD4PhSrZ24+baa5hfkeO25ahlezkreRO1a78ttTKR47q0ZeRruotSwgghgCpUmMDDCQexYtvv37fWprawf4DVvw2ze9JpmZvyTNRLdNOP/AJTcdRN8e32aFfING7iuQapb/kEsACkMGJMIIhJIdbPf2+vuqywwAVFelmG4X1mpsb/kK5as9eZArIa+QS5fUBFz8Ts4sjwj8fz9GixK9BtBBB77M6YEGEdLBOvqAK9GKtPHtnsqISqqpVV6LMlnPXcfkoXMvTAzTTZxn/PbJVlyU35t/EXZfObZg501NEtVl/x2YwI66UAfWsMISjLgrhrtxXY1WqKNT4NFmu62mwX5tAsYnwwNbUU5VPZq1cbu4hk8A4OZz77c1dtbdgkzsxp3BAfrWdk5NKaUYMrlNmWsK+tc9ivWlktavQnI4NTKYfKAGe5t0B+N2cd5quwc9Pau9TD4LO3sGBX7F8JWaFfPuS5XW12ekxpfRkvra6PHPvwzFnPZggf5TbDGlFWrLu4uyrzl35OXZKtS29x4YQB2G9/qEAoRUuzvXTopvVgZcFBBSp7GaOPTjFDtZ7lhGQQRWdga2YW1acGvjyPAOTla9S3UagWhHqR9oiGiplMdHqqep/ay7MLc3pbXS1k7YJXkrYuVsDI4jp2pYdBhYxIsz7eJtp8pZn5JbaNqXeDDOvsWZh6ujV2K1eUtLhhlh9XpNTxyr5kqBFkEBJqvNhYMrkfGqFSFjV6+O1caR5q0U7K76Nqsw6nf10CuLLB1eO6G7sFBBWAaUYXikUFCDdAVhjipgAoQwlC0JBUsLqd2N18g5NDnDqBh8f/EACwQAAICAgEDBAICAgMBAQAAAAABAhEDIRIQIDEEIkFREzBAYSMyQnGBUpH/2gAIAQEAAz8A/VTOUe1RVEss+K8sXpMPKXlidlvpUi+u7K6XR/iXSjRb66KfSi2aLE0RypidtIy4XaRLBLhIWXF7RxybOEkxZcaaOMtiaLRXTfZv9lquxQRLJIjFflyeRRjxRfkQmOy13NySOONd9op9Wma7FjRj9Ticpoh6TM/xkfWS/HkFBc8aJYnTL9jY/wDZHwxNd+/2e6hUKKI2fkIL3PyfjjS6OXgYxryfHcpZEjjBdNG+tMtdmzXWkflycEfg9K6+iU/Uysfps6n8GH1eFJv4Iu3AnhypkXFJkW/ax0Win27/AGOErJPQ30+GOKGNlFiEkVOi+28yPauu+uyz2m+lPsqDYpesqX2KeCl9GSORzSHFmXC/az21Mh5Q7E2m2YsiSbIzVoaZZXXf7KYvgbZSE5iS610bY2VNMuPb/lR7V012b6XE2WUb63BofpfV8v7IepxLZDNF6FzdIfG0ieB+Bro4+CUZq2RyxWxSiOL7N/t3R7jkLHssb6chWJdKkXDt/wAqOUV0oTKGi3ss9p7ixeBrfW0SyXOKMvo8qhPwRzYFL+hSkRcfApW0hwk2kV0raJYpJNkM8Fssorpv9qlkSfgXL2lR6V0p9uy412cUfklyYoRos+ixRIt0Lyjwe0amaLkJro0MjkjTFjy8oobwqJs9oppi26J2+KMkfKGvKHHZkwvTOSqRDPG0bYzf7bkKKti60i5dE+lIlZLlXWhzdRPxxVkJojBEWxHJEoztD4onj+C1TINkeIrF4EhMXSU9xRPFGpIlLZSEk2ReTgRlG2iOR+BPaQ8Ebo2bJ8LGyzf7eMkzlEdmzQoRLkMbL6JFTpFxvp+KFizyuWyKh7SUHxbOWmzhK0yM0tilEUmbIpbRCQk7RUSS8GWMrJIbXTZGa9yMa8IUdLpcWjhn5EZVESVkXojkxOjhkaOU0iMcSEymb6U6/XsuOh2asaLVdIoSLG0N7Gp3Q3FEmSjjsk5CxKmRe0SW0yUntkscvJySTYpbEiL0Uy4mqLdiSNiF46qIpFIs/NFteTPiy+DJwRkvY5QaZKM3KKHCV/R+SCRrrsTlr9lqmJMVCitEpPRP6Jyfgmyd2ylsi/JjiY4og/Bzx0hYMbnI/JOokmhx0bNjxM5pbJSZJSG/JaoaZRFOhCa0VIjjjbI/BJ7iSm6Za6cnTIeaIx1QmtHwQyLaE23Enhns1+nRQq6sl8IyKW0SY0ciF2zEjDD6MEfLR6aH/JGCPh2f/EWepf8AqqPWS/5UZpZ1jyu7FwVnHB7RznbFGJbGmR+SHwfiXkTlxYss0JR10TFHZwyaMmRKjI6TJXZKXtQ69xChY3aL6bLRTNdbF0rQ+6uryOkPyyN7ILyYkYYfRhh5aPTx+TGv9VZkf+sT1MvDo9TLzNmSXmTfdw9XB/3R+X06kvo/HeNijs5I5O2OUtDjEl5JZnxiZou6JwSchRVFqyXwZJtpksmW2Y4x8GPGyFUi/ePwibWicnsotFGjZq+5yejXauz/AC0yOKHJiT9qsyvwj1Ev+VGaXmTG/Lv9nHLGX00fk9Kv+hwzOhrQ2i3Q5x5Dw6aKVI/LlbZBJaFFUhS8iaIoj8I+SXF0eplN0meo5e6x8OLEmRrwJeCjXXZ7e/fZXXfTjmiN4LX8GnZ+T0kf+iE8rTJQ9yHF0xc0KONGOdsSftHH3M12UX0TRBvaMf0RQkxITEIfwOKLke0fKjX6bEuyskX/AGc/Tf8An8Ln6VL6JLOmhTwijPSJvaMmONGVurJ5HcjhjT7K6a/U7PsTQvJWhPYi+1ZZb+CC+CMI2kU+zRTOfpv/AAp1/B9rh9M5e4aXFkf9iKjTIrwPNMppJHDEl22zXbfTfboTVFMdDXkQhPr7n0/x92zl6b/wrJJf3/BrPKJyx6JQlRLKZV/qjJOVSRxV0KHkrGuzZsovu31roj6GxpF9GiSH89Nvpyxvu2XhaKzSX8Hh61L7FPHsjzpIXG2jH8oxqXgiolTSQ1iXbXT4LXdfY2NGxNdiKKPPS4tHGbXbs1JFZ3/f8Hh6vG/7OWJP+j3WKKpkWJs9onlViUF30fDL7NlPssosaLL7Nmn00J5HRTE102VTKyNFZE/4PHLGX00csEX/AEcyUPBOI15LRGeRCUUX3tM+GX0dFvtpd19nt6cYMt30102f4kzjnX9ntUv4NOxP0sW/ohk2QoT2jg6Eo2cvUUaXRC7bHEs0a7KEjlGzZS6J9b6+3pyfFduy8TRxzRf9l4L/AITyelUfoniWiT8kKpsbnaOGK2flz2a7a6p9GmJoTQq6UOxtlRNmu1Pr7DjE5O+3ZcaOORf0zn6b/wA/he1w+mWaJ4pWmPKiUfT2OUnJmv1WNDoaLLNmyolyPb031rrUC3xRrt2JqipnP03/AIU6/g8fUOP2WaORNy/oUcPEqN92uyykWutdEWyonuNd1dOOM5Sb72mcnZy9P/4VNr+/4PD1kf7NJlxPsxYlTIzlxQnhT7tdtF9tMstDTHQ+ldtQr9XLBRxzSX8Hh6mD/suEWe0/GnRKeS29CnNJDh6dWX/BafRUb/Ryl+r2yiVnv7/gv8sa82h/hjf0R8Mh6iJP0rcorQ5Zlf2V6eP/AF+jX6qLZop9b6V+2sjRU0/2SfhNmef+sGern/xo9RL/AGdH/wBybMGKSlW0KEeKHGPJDnLiyGT08m18Cj6vj/ZCGCKv4MSfkhJaYhCfgSIfZB/JEXZsTKNlRNlro0X0rX7qzr+z2qXbfgyS8RbPUT8RPUS86JP/AGkYV/ts9ND/AIowR8RRjXhEV8CXYsUWmRlnqz8uBpfKMyzucV8nqsUK2eoxy22Z8VKWz8qMidRMkv8AYyOPtM2XLxs9QqaZmS2ZUyXyNCaFYukGRjAvJRaEJ9WnZaGP9fHNFn58VIztmR/7Mj/ybMC8qzDHxFGNeERXwL9fsbPxeoTv5FkxIxSV0Y3aSLlaRboyY1aQvUe6ZixLSEoOkfh9XT+xTxpiEKyMoij4GSaMjZkiT4jWXZcV031VC8CF+upp/wBlwQv4TnidE8eVv+xxShNkXjuyLk7Ys8+ETxORixY+PyKtdI5I0znm5xHCCixrZTLR8C6aEmJkeInO0NRSZaKfXQ0xj/ZyxJ/w1NUcZNpEsT5LRkrjZMUctyI/j0yeTJRxWzHi8sx5n5ItWbFKJxYlpkE/Jj+yDej6G2Sic/JG7FRrt3+68SX7URXyR+yP2JFfBz2zHlgKEmke6hVsSlplqrIp2VHRkeTfgzekypxeiGfCnJ7MS+SFUh5PBmltGa9sk/LK8iEJop6GihMvs3+72tdyEiP2Qj5Zhj8mNeD/AOUZX4PUyenRL1Mak9k07fgxrUj078mGvayGNbZjyydMlJ8kZYrwZIvwZIE09iemL1HwOXuRkwpRsdW2RiJCF00NMvqmhxY0xSX8LjNoivLMa+THH5ILwfRKRkb8k/UfI0nskpPZ9lMVDjtEvTZVOPj5I5sNofIk1aY/DZlnBuDM0cjUm7R6jF4dok1U0YJ/7I9Hm+jA1cGOGSkKkxKNCTFRvpXYmUPryGhxYpIvov3Pnomvkb+eyh2RcuLNaLfRx3QrotDnNRXyfj9Mm/oqdUJaZUtEnjKzN9WhwjaZmvyLLFSfkcNEWastFlF9GNoaY2u1MplM0WP91SsuN9tjRLFnTRLLiUj7Nkc+LxslgyPRUDjni39jl6ePH6G3tCvaIXshjgfkm2l0rs/FpshNVY07ixNVIUvA+ldlmuldaLKfRfv2XAp9lCa2KORMhn9Ml80fjbLkcZKLF6jFzitksLakXliv7I4vSxcvoxKVEK0SnKomXLG2RjB35Erro11onjfkTpSZHIriyUZEZrt31td1FdL/AHUcoUVJ9tFSFFcWyM1aP8g1JMU8VSOEXOKP80f+yUsSxx+iWV2xOJPFO0icVTQ/xtkm2jZY12NeCeJ+TBm9uR7FXLG7Q06kRYn032X2V0of76OLLlfS9IkV1ljkc47YuVi0e2iMvTSv6OWb/o5y38FSo0J+UR+hfiY1NodjOUkiOXFyaMmFtxWhxdPrPHLlB0zLhqGbaPT+shyi1ZkxO1tHwxMT/ax/rvpXRydIfHl8k4eV0XgTEmOtCjKmy6opbOWJxT8jVzY4zZbs11/LBofJuindEflH+ZJIUcKRHImmjk3KC2ZcLqS7M/pZJ43r6MeZLHm0yGaPPEyeN1Ist919uxfs2LpPI9IUfdLycdEJraFJaJxekOHkTZUSUZ6LpMniVxJ+pdy8EMUOJiTMVeSL8MT8G+iZH6ISfggpcqElSLZGa2Y8qeiWNuUESg6kurTtGb0skpu4npfXQW1ZKHuhtFOpCa13Wiv4GzXRY5VIxzXtYhCIzRW4koS2XE5PQ8Utiy4xJFMa8GSD0zJH5JZ/PSu5CQmRnF2Rzyboyenk2lorrkwy5Y3TKrH6gweqjzxNWZMLp+CMxV2UWV1X7uZJbRPG9aPiYpK0+lEZR2RltHDQpyoa9yHF8WJo30odirYmhdiQhvwSY0ctEVshli7Q03KCJ43Ul2Z/SyuD19GH1K4ZdMr34naHH2zIyWu23+/ZYxVsT2OLJ43T8Cmuloob8DUtilCmcMuj2ll9PcOMSom+jGySH3WiMlshkvRPE+UVoa0+rTtaMuBqOTaMHqo3F0yeKX2iM1sTWul9j/ZsSkhNJlFqmKxeUPHKjkihKJ+TyJO0NaN2fD7OTRxgjRQy0UxSRWyul+ChpjaGy2RyKmi7lBE8TqS7J43yg6L9ub/9E1yxscdSIZFpi/g3JIqCsUimWrK0PyhrTNjZTEy2JoeN9GixNoqCLXTZorZTpicbLZR7iLEIXWMlshlT0ZMTbitDi6euzJienox5VUtMnjdxehT1IUla61+28qNLps0bNDstCo4q0OXk2Jio0aLY1NI9i67607Q3HYhCsoY32pohJbRi2zjJrsraJuXCWxw90TI3xZcb7P/EACURAAICAQQCAgMBAQAAAAAAAAABAhEDECAhMRIwE0EEIlEyQP/aAAgBAgEBPwDbkXGlC/VD5EhorR9EuyiituOck+CUH/ok1JCKGJECt0laFBko1yh6eWyXQxbUWYkRSlHxJY5I8Jd0ddjLMa9HQ5caIdaon1pQ90Gdjm48kZJq0SgmhqnTKMfom+dqGtMjEtaGtkWKaSJysxOS6Pkf2JKfZkxqPKIOjz3Nk/Rk/wBUUODqxrSyxvVvSEqPkRjyLyMy6enlsssZPrb4s+NjVD5diJdEo/ZWlHiNFHGxHk6rSti7Jtp0eMmfGz4z40eK2ZEfGmrPGh5PpHja5JQs+I8GOMjwf3uRZZejFpPtenJ0Sk4vglK+RRbfAnxW1o8EfGj40SxpaWWWWTfJDrRmQXon0ZO9LpEHfpn1sWk+zG/rRk+iPXofRlL0xenJ0PbLsxr7HpdxIdenJGyUK0xLjW92V8baJdkVXGsemjH16c3FibZRBUvTl3RVu9iVMx9tenMj7Em2R69OVcboqltjxL05RrkxRvlC9OToeq3v/WzyQ5o+Q+RjmxuyceTFLxtMi/LhDTXY5o80XtydarS92Tuz5GeT9HjfBKLTINp2iWVvgkRTFtn1ohejJ16bJS/hCp9jhFqjxS7IY/OVDx+HBaHNDyoeUeRnk3659aJM8WUKvsXiLxszRadrSiOJpcM/ZFr7ROou4jySfbH/AMEuiHWjGkNFCPyG+Fril+qvTwRPH9EsbQ9laUUP0Poh/NXEYj7PyO0WkSa+jDb6Fxo0n2SxfwnhvlDi0XufprmyUqFkHIb0bMs7Y9MWRR7PnRly/wAMf5H1ITT5Q1ZPEmTwtbqEitzHaXA3peiXA2ONjxDVasohNxfBDPGXD0cLMmElBoWq9DHNplqRJNF6J0S0jRN8l6WWXpj/ACHHiRCakrQ1ZPFZLFXR1otL3PVP6Y9HpQ+CT5LENC1ZCTi7RjzqXD0lFMniHjoSKK3S62PVi7Mg9ES0W38aTa51yLkl3r//xAAhEQACAgICAwEBAQAAAAAAAAAAAQIREDESIAMhMEFRE//aAAgBAwEBPwAXRZ3lrKEs0UcSii6Gv0asaKKxRXZPCd4XVbw+ixRM93Zx/hwbHEoor4L38I7yu0o2hNojKxqhOyUaL+MVS6oeIoeFhFFZcfYlQ5UKSLGl8Iq8roxC1is37xeaKJKziJeqHrs4s4izZZZZyIn51TssrFdWX0SEqGJnJHI5HIvpEWst0chNHNHNFoTG8sZXSIzaFr4xIazJZeE2KTOTOTFLFdEPY2RZH4x2Q1mWZYXSOxLLWFokV6Ii2PfwWyGZ9GusRZeFolog/wAP0eyW/jF0JlE+rQsxKxeVoZF+8SJfGAkiie+jR+CWYvDw8P0i/QhsbtEvjB4slvqxZjvLy31evjAi/Q2kPfV9I7Fl9/zpTOJxOJSxHRs4lfw4s4lFFZjljK6sicUV8IaykkIb7LDY/hD4UUQVDy3SsUuXtFMUWcDgcUVh/GO+1DTr0QdrP+quhSsvFV2v5x2SsZG7wi8eOt58njv2hNofkYpfopWUMvF4ssXwjsnoYnQneGJniXrpJJ+0NNCk1oU0xeSi76vCxfZJ7Q369kY2cUKNDGhbIqlmrRwSKJeK/aHFrYpURn/CM08seLGy+0NFp+s3lCZfWxq9kvFWsKX9IzE7Hlj7w0Uvk1iisy8akSg47E6IzFLLxXaL7p5WGJ9LG7VEvH/MKVCmWXi+0d9HlCFliy+nkXq8xHn/2Q==');background-size: 100% 100%;-webkit-transition: opacity 0.5s;transition: opacity 0.5s;}main[class] #_loading {opacity: 0;}main[class] #_loading.on {display: none;opacity: 0.05;pointer-events: none;-webkit-transition: none;transition: none;}main[class] #_loading.on::after {content: none;}
+</style>
+	
+</head>
+<body>
+	
+<div data-nosnippet=""><!-- 🤷 google workaround -->
+
+<main class="question">
+	
+	<!-- ⏳ loading -->
+	<div id="_loading" class="on"></div>
+
+	
+	<!-- 🦁 main content -->
+	
+	<header data-fx="fx.mp3">
+		<h1><span><span>Programming</span><span></span></span> <span><span>Language</span><span></span></span> <span><span>Inventor</span><span></span></span> <span style="visibility: visible;">or</span> <span class="_raybees" style="visibility: visible;">Serial</span> <span class="_raybees" style="visibility: visible;">Killer</span><span style="visibility: visible;">?</span></h1>
+		<p style="display: block;"><span>Can you tell a coder from a cannibal? A mathematician from a murderer? Try to spot who liked hacking away at corpses rather than computers</span></p>
+		<a href="#" style="display: none;"><span>Start</span></a>
+	</header>
+
+	<section>
+		<h2 hidden="">Quiz Questions</h2>
+		<dl>
+			<dt><img src="1.jpg" alt="" class="on"><span>1. Bertrand Meyer</span></dt>
+			<dd data-coder="1" data-sound="1"><span>Initial designer of the Eiffel language and Design by Contract development method. Currently a Professor at the Polytechnic University of Milan</span></dd>
+			
+			<dt><img src="2.jpg" alt=""><span>2. Dorothea Puente</span></dt>
+			<dd data-coder="0" data-sound="2"><span>The “Death House Landlady” ran a Sacramento boarding house in the ’80s and murdered at least 9 tenants before claiming their Social Security</span></dd>
+
+			<dt><img src="3.jpg" alt=""><span>3. John Christie</span></dt>
+			<dd data-coder="0" data-sound="2"><span>Killed 8 women at 10 Rillington Place, London. Arrested after new tenants tracing an unpleasant odour peeled off the kitchen wallpaper to reveal a corpse</span></dd>
+			
+			<dt><img src="4.jpg" alt=""><span>4. Andrei Chikatilo</span></dt>
+			<dd data-coder="0" data-sound="2"><span>The “Butcher of Rostov” murdered and mutilated more than 50 people, mostly small children. He was told as a child that villagers had eaten his brother</span></dd>
+			
+			<dt><img src="5.jpg" alt=""><span>5. John Mauchly</span></dt>
+			<dd data-coder="1" data-sound="1"><span>Co-designed the first electronic general-purpose computer and created Short Code, the first programming language actually used on a computer</span></dd>
+			
+			<dt><img src="6.jpg" alt=""><span>6. Gerald Jay Sussman</span></dt>
+			<dd data-coder="1" data-sound="1"><span>Invented the Scheme programming language with Guy L. Steele Jr. and involved in MIT’s AI research. Member of the Amateur Telescope Makers of Boston</span></dd>
+			
+			<dt><img src="7.jpg" alt=""><span>7. Anatoly Onoprienko</span></dt>
+			<dd data-coder="0" data-sound="2"><span>“The Terminator” killed entire families at point-blank range with a shotgun before setting the house alight; “To me, killing people is like ripping up a duvet”</span></dd>
+			
+			<dt><img src="8.jpg" alt=""><span>8. Jean E. Sammet</span></dt>
+			<dd data-coder="1" data-sound="1"><span>Established much of the design of COBOL in two weeks along with five other programmers, and developed FORMAC, an early computer algebra system</span></dd>
+			
+			<dt><img src="9.jpg" alt=""><span>9. Guido van Rossum</span></dt>
+			<dd data-coder="1" data-sound="1"><span>Created the Python programming language in 1989 to keep busy while his office was closed for Christmas, naming it after Monty Python’s Flying Circus</span></dd>
+			
+			<dt><img src="10.jpg" alt=""><span>10. Randy Kraft</span></dt>
+			<dd data-coder="0" data-sound="2"><span>This programmer (not known to have invented any languages) was convicted of killing 16 young men, but kept a cryptic “scorecard” with 61 entries</span></dd>
+		</dl>
+		<a href="#" id="buttonAnswer1" style="display: inline;"><span>Programming Language Inventor</span></a>
+		<a href="#" id="buttonAnswer2" style="display: inline;"><span class="_raybees">Serial Killer</span></a>
+		<a href="#" id="buttonNext"><span>Next…</span><span>Result</span></a>
+	</section>
+	
+	<footer>
+		<div>
+			<h2 data-message="I scored {score} out of {questions}! Can you tell a coder from a cannibal? 💻🔪"><span></span><span> out of </span><span></span></h2>
+			<ol>
+				<li>Wow, perhaps you instinctively fear coders and admire killers...?</li>
+				<li>Wow, perhaps you instinctively fear coders and admire killers...?</li>
+				<li>Wow, perhaps you instinctively fear coders and admire killers...?</li>
+				<li>Pretty terrible, you can’t tell a Norman Bates from a Bill Gates</li>
+				<li>Pretty terrible, you can’t tell a Norman Bates from a Bill Gates</li>
+				<li>Rather poor, maybe avoid working in criminology or I.T. recruitment</li>
+				<li>Rather poor, maybe avoid working in criminology or I.T. recruitment</li>
+				<li>Not bad, it seems you can sense logical brains versus clogged drains</li>
+				<li>Not bad, it seems you can sense logical brains versus clogged drains</li>
+				<li>You’d spot Hannibal Lecter in seconds at a hack day. Your liver’s safe</li>
+				<li>You’d spot Hannibal Lecter in seconds at a hack day. Your liver’s safe</li>
+			</ol>
+		</div>
+	</footer>
+	
+	<div id="picShadow"></div>
+	<div id="cornerShadow"></div>
+	<div id="flyShadow" class=""></div>
+
+
+	<!-- 👭 sharing -->
+	<div id="_share" data-_message="" data-_url="" class="_shareMore"><button id="_shareCopy">Copy</button><button id="_shareBluesky">Bluesky</button><button id="_shareWhatsApp">WhatsApp</button><button id="_shareMore">…</button></div>
+
+</main>
+
+
+<!-- 🎉 cross-promotion -->
+<aside id="_suggest" aria-hidden="true">
+	<div id="_promos" class="">
+		<button>More Games</button>
+		<p><a href="/potatocam/" data-new="1" data-updated="0" data-users="2"><img src="/potatocam/thumb.jpg?v=1.8" alt="PotatoCam" loading="lazy" aria-hidden="true"><span>PotatoCam</span></a><a href="/cool-s/" data-new="1" data-updated="0" data-users="2"><img src="/cool-s/thumb.jpg?v=1.8" alt="Can You Draw a Cool S ?" loading="lazy" aria-hidden="true"><span>Can You Draw a Cool S ?</span></a><a href="/work-reply-soundboard/" data-new="0" data-updated="0"><img src="/work-reply-soundboard/thumb.jpg?v=1.8" alt="Work Reply Soundboard" loading="lazy" aria-hidden="true"><span>Work Reply Soundboard</span></a><a href="/hellmouth/" data-new="0" data-updated="0"><img src="/hellmouth/thumb.jpg?v=1.8" alt="Hellmouth Finder" loading="lazy" aria-hidden="true"><span>Hellmouth Finder</span></a><a href="/bokeh/" data-new="0" data-updated="0" data-users="2"><img src="/bokeh/thumb.jpg?v=1.8" alt="BOKEH game" loading="lazy" aria-hidden="true"><span>BOKEH game</span></a><a href="/freddo/" data-new="0" data-updated="0"><img src="/freddo/thumb.jpg?v=1.8" alt="World’s Biggest Freddo" loading="lazy" aria-hidden="true"><span>World’s Biggest Freddo</span></a></p>
+		<ul>
+			<li><a href="/">Home</a></li>
+			<li><a href="/blah/">About</a></li>
+			<li><a href="https://crispsandwi.ch/@VOLEwtf" target="_blank" rel="noopener">Mastodon</a></li>
+			<li><a href="https://bsky.app/profile/vole.wtf" target="_blank" rel="noopener">Bluesky</a></li>
+		</ul>
+	</div>
+</aside>
+
+
+<!-- 🍔 nav bar -->
+<div id="_nav">
+	<button aria-expanded="false" aria-controls="_navMenu" tabindex="1" data-users="1">Toggle menu</button>
+	<nav id="_navMenu" aria-label="Main menu">
+		<ul role="list">
+			<li><a href="/" tabindex="1">Home Page</a></li>
+			<li><a href="/blah/" tabindex="1">info blah</a></li>
+			<li><a rel="me noopener" href="https://crispsandwi.ch/@VOLEwtf" target="_blank" tabindex="1">Mastodon</a></li>
+			<li><a href="https://bsky.app/profile/vole.wtf" target="_blank" rel="noopener" tabindex="1">Bluesky</a></li>
+			<li id="_navBuy"><a href="/buy-this-site/#buy-coder-serial-killer-quiz" tabindex="1">Buy This Project</a></li>
+			<li id="_navDestroy" aria-hidden="true"><a href="#" data-_destroy-js="/_common/destroy/destroy.js?v=1.8" data-_destroy-css="/_common/destroy/destroy.css?v=1.8" data-_destroy-explosion="/_common/destroy/explosion.gif?v=1.8" data-_destroy-audio="/_common/destroy/explosives.mp3?v=1.8" title="Go on, you know you want to" tabindex="1">Destroy this page</a></li>
+		</ul>
+		<ol role="list">
+			<li><a href="/potatocam/" data-new="1" data-updated="0" tabindex="1" data-users="2"><img src="/potatocam/thumb.jpg?v=1.8" alt="PotatoCam" loading="lazy" aria-hidden="true"><span>PotatoCam</span></a></li>
+			<li><a href="/cool-s/" data-new="1" data-updated="0" tabindex="1" data-users="2"><img src="/cool-s/thumb.jpg?v=1.8" alt="Can You Draw a Cool S ?" loading="lazy" aria-hidden="true"><span>Can You Draw a Cool S ?</span></a></li>
+			<li><a href="/doctype/" data-new="1" data-updated="0" tabindex="1"><img src="/doctype/thumb.jpg?v=1.8" alt="DOCTYPE magazine" loading="lazy" aria-hidden="true"><span>DOCTYPE magazine</span></a></li>
+			<li><a href="/one-percent/" data-new="0" data-updated="0" tabindex="1" data-users="1"><img src="/one-percent/thumb.jpg?v=1.8" alt="The 1% Guild" loading="lazy" aria-hidden="true"><span>The 1% Guild</span></a></li>
+			<li><a href="/crisp-sandwich-day/" data-new="0" data-updated="0" tabindex="1"><img src="/crisp-sandwich-day/thumb.jpg?v=1.8" alt="Crisp Sandwich Day" loading="lazy" aria-hidden="true"><span>Crisp Sandwich Day</span></a></li>
+			<li><a href="/reload-clicker/" data-new="0" data-updated="0" tabindex="1"><img src="/reload-clicker/thumb.jpg?v=1.8" alt="Reload Clicker" loading="lazy" aria-hidden="true"><span>Reload Clicker</span></a></li>
+			<li><a href="/gift-shop/" data-new="0" data-updated="0" tabindex="1"><img src="/gift-shop/thumb.jpg?v=1.8" alt="Gift Shop" loading="lazy" aria-hidden="true"><span>Gift Shop</span></a></li>
+			<li><a href="/vtv/" data-new="0" data-updated="0" tabindex="1" data-users="1"><img src="/vtv/thumb.jpg?v=1.8" alt="VTV music video station" loading="lazy" aria-hidden="true"><span>VTV music video station</span></a></li>
+			<li><a href="/celeb-clock/" data-new="0" data-updated="0" tabindex="1"><img src="/celeb-clock/thumb.jpg?v=1.8" alt="Celeb Clock" loading="lazy" aria-hidden="true"><span>Celeb Clock</span></a></li>
+			<li><a href="/primesweeper/" data-new="0" data-updated="0" tabindex="1" data-users="2"><img src="/primesweeper/thumb.jpg?v=1.8" alt="Primesweeper" loading="lazy" aria-hidden="true"><span>Primesweeper</span></a></li>
+			<li><a href="/overpriced-basic-url/" data-new="0" data-updated="0" tabindex="1"><img src="/overpriced-basic-url/thumb.jpg?v=1.8" alt="OVERPRICED BASIC LINK" loading="lazy" aria-hidden="true"><span>OVERPRICED BASIC LINK</span></a></li>
+			<li><a href="/goalie/" data-new="0" data-updated="0" tabindex="1"><img src="/goalie/thumb.jpg?v=1.8" alt="The Incredible Shrinking Goalie" loading="lazy" aria-hidden="true"><span>The Incredible Shrinking Goalie</span></a></li>
+			<li><a href="/how-punctual/" data-new="0" data-updated="0" tabindex="1" data-users="3"><img src="/how-punctual/thumb.jpg?v=1.8" alt="How Punctual Are You?" loading="lazy" aria-hidden="true"><span>How Punctual Are You?</span></a></li>
+			<li><a href="/comic-sans-maps/" data-new="0" data-updated="0" tabindex="1"><img src="/comic-sans-maps/thumb.jpg?v=1.8" alt="Comic Sans Maps" loading="lazy" aria-hidden="true"><span>Comic Sans Maps</span></a></li>
+			<li><a href="/selfie-shuffle/" data-new="0" data-updated="0" tabindex="1" data-users="1"><img src="/selfie-shuffle/thumb.jpg?v=1.8" alt="Selfie Shuffle puzzle" loading="lazy" aria-hidden="true"><span>Selfie Shuffle puzzle</span></a></li>
+			<li><a href="/styscraper/" data-new="0" data-updated="0" tabindex="1" data-users="4"><img src="/styscraper/thumb.jpg?v=1.8" alt="Styscraper - pig stacking game" loading="lazy" aria-hidden="true"><span>Styscraper - pig stacking game</span></a></li>
+			<li><a href="/stopormy-dot-mom/" data-new="0" data-updated="0" tabindex="1"><img src="/stopormy-dot-mom/thumb.jpg?v=1.8" alt="Stop! Or My Mom Will Shoot fansite" loading="lazy" aria-hidden="true"><span>Stop! Or My Mom Will Shoot fansite</span></a></li>
+			<li><a href="/dog-poo-golf/" data-new="0" data-updated="0" tabindex="1" data-users="2"><img src="/dog-poo-golf/thumb.jpg?v=1.8" alt="Dog Poo Golf" loading="lazy" aria-hidden="true"><span>Dog Poo Golf</span></a></li>
+			<li><a href="/british-teeth/" data-new="0" data-updated="0" tabindex="1"><img src="/british-teeth/thumb.jpg?v=1.8" alt="How British Are Your Teeth?" loading="lazy" aria-hidden="true"><span>How British Are Your Teeth?</span></a></li>
+			<li><a href="/hellmouth/" data-new="0" data-updated="0" tabindex="1"><img src="/hellmouth/thumb.jpg?v=1.8" alt="Hellmouth Finder" loading="lazy" aria-hidden="true"><span>Hellmouth Finder</span></a></li>
+			<li><a href="/daybrix/" data-new="0" data-updated="0" tabindex="1" data-users="2"><img src="/daybrix/thumb.jpg?v=1.8" alt="DayBrix daily minigame" loading="lazy" aria-hidden="true"><span>DayBrix daily minigame</span></a></li>
+			<li><a href="/crow-flies/" data-new="0" data-updated="0" tabindex="1" data-users="6"><img src="/crow-flies/thumb.jpg?v=1.8" alt="As The Crow Flies" loading="lazy" aria-hidden="true"><span>As The Crow Flies</span></a></li>
+			<li><a href="/raybees-font/" data-new="0" data-updated="0" tabindex="1"><img src="/raybees-font/thumb.jpg?v=1.8" alt="Raybees Font v2" loading="lazy" aria-hidden="true"><span>Raybees Font v2</span></a></li>
+			<li><a href="/arcc/" data-new="0" data-updated="0" tabindex="1"><img src="/arcc/thumb.jpg?v=1.8" alt="Apocalypse Recovery Computing Cluster" loading="lazy" aria-hidden="true"><span>Apocalypse Recovery Computing Cluster</span></a></li>
+			<li><a href="/british-seaside/" data-new="0" data-updated="0" tabindex="1"><img src="/british-seaside/thumb.jpg?v=1.8" alt="British Seaside Simulator" loading="lazy" aria-hidden="true"><span>British Seaside Simulator</span></a></li>
+			<li><a href="/clone-a-lisa/" data-new="0" data-updated="0" tabindex="1" data-users="3"><img src="/clone-a-lisa/thumb.jpg?v=1.8" alt="Clone-a Lisa forgery game" loading="lazy" aria-hidden="true"><span>Clone-a Lisa forgery game</span></a></li>
+			<li><a href="/biro-banana/" data-new="0" data-updated="0" tabindex="1"><img src="/biro-banana/thumb.jpg?v=1.8" alt="Biro + Banana = Art" loading="lazy" aria-hidden="true"><span>Biro + Banana = Art</span></a></li>
+			<li><a href="/big-ben/" data-new="0" data-updated="0" tabindex="1" data-users="1"><img src="/big-ben/thumb.jpg?v=1.8" alt="BIG BEN word game" loading="lazy" aria-hidden="true"><span>BIG BEN word game</span></a></li>
+			<li><a href="/britains-most-boring/" data-new="0" data-updated="0" tabindex="1"><img src="/britains-most-boring/thumb.jpg?v=1.8" alt="Britain’s Most Boring" loading="lazy" aria-hidden="true"><span>Britain’s Most Boring</span></a></li>
+			<li><a href="/mastodon/" data-new="0" data-updated="0" tabindex="1"><img src="/mastodon/thumb.jpg?v=1.8" alt="Join our Mastodon server" loading="lazy" aria-hidden="true"><span>Join our Mastodon server</span></a></li>
+			<li><a href="/voleflix/" data-new="0" data-updated="0" tabindex="1" data-users="1"><img src="/voleflix/thumb.jpg?v=1.8" alt="Voleflix free movies" loading="lazy" aria-hidden="true"><span>Voleflix free movies</span></a></li>
+			<li><a href="/hampster-invaders/" data-new="0" data-updated="0" tabindex="1" data-users="7"><img src="/hampster-invaders/thumb.jpg?v=1.8" alt="Hampster Invaders" loading="lazy" aria-hidden="true"><span>Hampster Invaders</span></a></li>
+			<li><a href="/buy-this-site/" data-new="0" data-updated="0" tabindex="1"><img src="/buy-this-site/thumb.jpg?v=1.8" alt="Buy This Site" loading="lazy" aria-hidden="true"><span>Buy This Site</span></a></li>
+			<li><a href="/kilogram/" data-new="0" data-updated="0" tabindex="1"><img src="/kilogram/thumb.jpg?v=1.8" alt="Kilogram - 1KB photo site" loading="lazy" aria-hidden="true"><span>Kilogram - 1KB photo site</span></a></li>
+			<li><a href="/childhood-ambitions/" data-new="0" data-updated="0" tabindex="1"><img src="/childhood-ambitions/thumb.jpg?v=1.8" alt="Childhood Ambitions …vs reality" loading="lazy" aria-hidden="true"><span>Childhood Ambitions …vs reality</span></a></li>
+			<li><a href="/imaginary-friends/" data-new="0" data-updated="0" tabindex="1"><img src="/imaginary-friends/thumb.jpg?v=1.8" alt="Imaginary Friends Reunited" loading="lazy" aria-hidden="true"><span>Imaginary Friends Reunited</span></a></li>
+			<li><a href="/ganksy/" data-new="0" data-updated="0" tabindex="1"><img src="/ganksy/thumb.jpg?v=1.8" alt="GANksy A.I. street artist" loading="lazy" aria-hidden="true"><span>GANksy A.I. street artist</span></a></li>
+			<li><a href="/penga/" data-new="0" data-updated="0" tabindex="1" data-users="39"><img src="/penga/thumb.jpg?v=1.8" alt="Penga - penguin physics game" loading="lazy" aria-hidden="true"><span>Penga - penguin physics game</span></a></li>
+			<li><a href="/bokeh/" data-new="0" data-updated="0" tabindex="1" data-users="2"><img src="/bokeh/thumb.jpg?v=1.8" alt="BOKEH game" loading="lazy" aria-hidden="true"><span>BOKEH game</span></a></li>
+			<li><a href="/vmail/" data-new="0" data-updated="0" tabindex="1"><img src="/vmail/thumb.jpg?v=1.8" alt="Vmail - our email newsletter" loading="lazy" aria-hidden="true"><span>Vmail - our email newsletter</span></a></li>
+			<li><a href="/triple-tautonyms/" data-new="0" data-updated="0" tabindex="1"><img src="/triple-tautonyms/thumb.jpg?v=1.8" alt="Triple Tautonyms" loading="lazy" aria-hidden="true"><span>Triple Tautonyms</span></a></li>
+			<li><a href="/clickbait-genius/" data-new="0" data-updated="0" tabindex="1" data-users="2"><img src="/clickbait-genius/thumb.jpg?v=1.8" alt="Are You a Clickbait Genius?" loading="lazy" aria-hidden="true"><span>Are You a Clickbait Genius?</span></a></li>
+			<li><a href="/buttystock/" data-new="0" data-updated="0" tabindex="1"><img src="/buttystock/thumb.jpg?v=1.8" alt="ButtyStock" loading="lazy" aria-hidden="true"><span>ButtyStock</span></a></li>
+			<li><a href="/buttystock/ar/" data-new="0" data-updated="0" tabindex="1"><img src="/buttystock/ar/thumb.jpg?v=1.8" alt="Augmented Reality Crisp Sandwich" loading="lazy" aria-hidden="true"><span>Augmented Reality Crisp Sandwich</span></a></li>
+			<li><a href="/freddo/" data-new="0" data-updated="0" tabindex="1"><img src="/freddo/thumb.jpg?v=1.8" alt="World’s Biggest Freddo" loading="lazy" aria-hidden="true"><span>World’s Biggest Freddo</span></a></li>
+			<li><a href="/kilobytes-gambit/" data-new="0" data-updated="0" tabindex="1" data-users="3"><img src="/kilobytes-gambit/thumb.jpg?v=1.8" alt="The Kilobyte’s Gambit" loading="lazy" aria-hidden="true"><span>The Kilobyte’s Gambit</span></a></li>
+			<li><a href="/happy-birthday/" data-new="0" data-updated="0" tabindex="1" data-users="1"><img src="/happy-birthday/thumb.jpg?v=1.8" alt="Happy Birthday To You public domain" loading="lazy" aria-hidden="true"><span>Happy Birthday To You public domain</span></a></li>
+			<li><a href="/trudgecast/" data-new="0" data-updated="0" tabindex="1"><img src="/trudgecast/thumb.jpg?v=1.8" alt="TrudgeCast podcast" loading="lazy" aria-hidden="true"><span>TrudgeCast podcast</span></a></li>
+			<li><a href="/this-mp-does-not-exist/" data-new="0" data-updated="0" tabindex="1"><img src="/this-mp-does-not-exist/thumb.jpg?v=1.8" alt="This MP Does Not Exist" loading="lazy" aria-hidden="true"><span>This MP Does Not Exist</span></a></li>
+			<li><a href="/scunthorpe-sans/" data-new="0" data-updated="0" tabindex="1" data-users="1"><img src="/scunthorpe-sans/thumb.jpg?v=1.8" alt="Scunthorpe Sans" loading="lazy" aria-hidden="true"><span>Scunthorpe Sans</span></a></li>
+			<li><a href="/webcam-age/" data-new="0" data-updated="0" tabindex="1"><img src="/webcam-age/thumb.jpg?v=1.8" alt="What’s Your Webcam Age?" loading="lazy" aria-hidden="true"><span>What’s Your Webcam Age?</span></a></li>
+			<li><a href="/death-roulette/" data-new="0" data-updated="0" tabindex="1" data-users="9"><img src="/death-roulette/thumb.jpg?v=1.8" alt="17th Century Death Roulette" loading="lazy" aria-hidden="true"><span>17th Century Death Roulette</span></a></li>
+			<li><a href="/avocado-n-toast/" data-new="0" data-updated="0" tabindex="1"><img src="/avocado-n-toast/thumb.jpg?v=1.8" alt="Avocado’n’Toast comic generator" loading="lazy" aria-hidden="true"><span>Avocado’n’Toast comic generator</span></a></li>
+			<li><a href="/how-disgusting/" data-new="0" data-updated="0" tabindex="1"><img src="/how-disgusting/thumb.jpg?v=1.8" alt="How DISGUSTING Are You?" loading="lazy" aria-hidden="true"><span>How DISGUSTING Are You?</span></a></li>
+			<li><a href="/simons/" data-new="0" data-updated="0" tabindex="1"><img src="/simons/thumb.jpg?v=1.8" alt="SIMONS memory game" loading="lazy" aria-hidden="true"><span>SIMONS memory game</span></a></li>
+			<li><a href="/high-notes/" data-new="0" data-updated="0" tabindex="1" data-users="3"><img src="/high-notes/thumb.jpg?v=1.8" alt="Hit the High Notes" loading="lazy" aria-hidden="true"><span>Hit the High Notes</span></a></li>
+			<li><a href="/calm-down-britain/" data-new="0" data-updated="0" tabindex="1"><img src="/calm-down-britain/thumb.jpg?v=1.8" alt="Calm Down Britain" loading="lazy" aria-hidden="true"><span>Calm Down Britain</span></a></li>
+			<li><a href="/cydapc-moved/" data-new="0" data-updated="0" tabindex="1"><img src="/cydapc-moved/thumb.jpg?v=1.8" alt="Can You Draw a Perfect Circle?" loading="lazy" aria-hidden="true"><span>Can You Draw a Perfect Circle?</span></a></li>
+			<li><a href="/dog-breeds/" data-new="0" data-updated="0" tabindex="1"><img src="/dog-breeds/thumb.jpg?v=1.8" alt="Dog Breeds Chart" loading="lazy" aria-hidden="true"><span>Dog Breeds Chart</span></a></li>
+			<li><a href="/sleep-animal/" data-new="0" data-updated="0" tabindex="1"><img src="/sleep-animal/thumb.jpg?v=1.8" alt="What’s Your Sleep Animal?" loading="lazy" aria-hidden="true"><span>What’s Your Sleep Animal?</span></a></li>
+			<li><a href="/goth-or-moth/" data-new="0" data-updated="0" tabindex="1"><img src="/goth-or-moth/thumb.jpg?v=1.8" alt="Goth or Moth?" loading="lazy" aria-hidden="true"><span>Goth or Moth?</span></a></li>
+			<li><a href="/plaiceholder-images/" data-new="0" data-updated="0" tabindex="1"><img src="/plaiceholder-images/thumb.jpg?v=1.8" alt="Plaiceholder Images" loading="lazy" aria-hidden="true"><span>Plaiceholder Images</span></a></li>
+			<li><a href="/kick-the-ball-back/" data-new="0" data-updated="0" tabindex="1" data-users="10"><img src="/kick-the-ball-back/thumb.jpg?v=1.8" alt="Kick the Ball Back" loading="lazy" aria-hidden="true"><span>Kick the Ball Back</span></a></li>
+			<li><a href="/they-walk-among-us/" data-new="0" data-updated="0" tabindex="1"><img src="/they-walk-among-us/thumb.jpg?v=1.8" alt="They Walk Among Us" loading="lazy" aria-hidden="true"><span>They Walk Among Us</span></a></li>
+			<li><a href="/work-reply-soundboard/" data-new="0" data-updated="0" tabindex="1"><img src="/work-reply-soundboard/thumb.jpg?v=1.8" alt="Work Reply Soundboard" loading="lazy" aria-hidden="true"><span>Work Reply Soundboard</span></a></li>
+			<li><a href="/text-generator/" data-new="0" data-updated="0" tabindex="1"><img src="/text-generator/thumb.jpg?v=1.8" alt="Text Generator" loading="lazy" aria-hidden="true"><span>Text Generator</span></a></li>
+			<li><a href="/coder-serial-killer-quiz/" data-new="0" data-updated="0" tabindex="1" data-users="1"><img src="/coder-serial-killer-quiz/thumb.jpg?v=1.8" alt="Programming Language Inventor or Serial Killer?" loading="lazy" aria-hidden="true"><span>Programming Language Inventor or Serial Killer?</span></a></li>
+		</ol>
+	</nav>
+	<p><input type="checkbox" id="_navSound" checked="" hidden=""><label for="_navSound" tabindex="1">Toggle sound</label></p>
+</div>
+
+<!-- 🧳 must-wait-for preloads -->
+<div id="_preloads" aria-hidden="true"><span>v</span><span>o</span><span>l</span><span>e</span><img src="main.jpg?v=2" alt="" loading="eager"></div>
+
+
+<!-- 💬 alert dialog -->
+<dialog id="_alert">
+  <p></p>
+  <form method="dialog">
+	<button>Close</button>
+  </form>
+</dialog>
+
+
+</div><!-- 🤷 google workaround -->
+
+
+<!-- 💾 scripting -->
+<script src="/_common/common.js?v=1.8"></script>
+<script src="/_common/common-audio2.js?v=1.8"></script>
+<script>
+	var question = 1;var score = 0;var fx;$('footer li:empty').each(function() {$(this).html($(this).prev().html());});function init() {$('main').addClass('intro');setTimeout(function() {$('#_loading').addClass('on');var t = setInterval(function() {var to = $('header h1 > span:nth-child(1) span:nth-child(1)');var from = $('header h1 > span:nth-child(1) span:nth-child(2)');if (from.text().length == 0) {to = $('header h1 > span:nth-child(2) span:nth-child(1)');from = $('header h1 > span:nth-child(2) span:nth-child(2)');}if (from.text().length == 0) {to = $('header h1 > span:nth-child(3) span:nth-child(1)');from = $('header h1 > span:nth-child(3) span:nth-child(2)');}if (from.text().length == 0) {clearInterval(t);setTimeout(function() {$('header h1 > span:nth-child(4)').css('visibility', 'visible');}, 150);setTimeout(function() {$('header h1 > span:nth-child(5), header h1 > span:nth-child(6)').css('visibility', 'visible');}, 700);setTimeout(function() {$('header h1 > span:nth-child(7)').css('visibility', 'visible');$('header p').show();$('header a').show();}, 1000);setTimeout(function() {if ($('main').hasClass('intro')) {$('main').addClass('intro2');}}, 3500);return;}to.text( to.text() + from.text().charAt(0) );from.text( from.text().substring(1) );}, 40);}, 1200);}$(window).on('load', function() {fx = new Howl({src: [$('header').attr('data-fx')],volume: 0.8,sprite: {ambience: [533, 10134],next: [16816, 1203],appear: [18450, 1044],answer: [19880, 727],fly1: [21203, 1864],fly2: [23621, 2570],shadow: [26598, 5509],result: [13337, 3079],coder: [33998, 1779],q2: [36192, 2155],q3: [38755, 3373],q4: [42616, 2089],q7: [45099, 1544],q10: [47052, 4219]},onload: init,onloaderror: init});});$('header a').on('click', function() {fx.play('next');setTimeout(function() {var ambience = fx.play('ambience');fx.loop(true, ambience);}, 200);$(this).hide();$('main').attr('class', 'question');setTimeout(function() {fx.play('appear');$('section a#buttonAnswer1').show();}, 1250);setTimeout(function() {if ($('section a#buttonAnswer1').css('display') !== 'none') {fx.play('appear');$('section a#buttonAnswer2').show();}}, 1500);setInterval(function() {fx.play('shadow');$('#cornerShadow').addClass('on');setTimeout(function() {$('#cornerShadow').removeClass('on');}, 3000 + Math.floor(5000*Math.random()) );}, 30000);setInterval(function() {$('#flyShadow').toggleClass('on');if ($('#flyShadow').hasClass('on')) {fx.play('fly1');} else {fx.play('fly2');}}, 18000);setTimeout(function() {$('#flyShadow').toggleClass('on');fx.play('fly1');}, 7000);return false;});$('section a#buttonAnswer1, section a#buttonAnswer2').on('click', function() {fx.play('answer');if ($('section dd').eq(question - 1).attr('data-coder') == '1') {setTimeout(function() {fx.play('coder');}, 1700);} else {setTimeout(function() {fx.play('q' + question);}, 1700);}$('section a#buttonAnswer1, section a#buttonAnswer2').hide();var coder = '0';if ($(this).attr('id') == 'buttonAnswer1') {coder = '1';}if ($('section dd').eq(question - 1).attr('data-coder') == coder) {score ++;}if (question == $('section dt').length) {$('section a#buttonNext span').eq(0).hide();$('section a#buttonNext span').eq(1).show();}$('#_loading').show();setTimeout(function() {$('#_loading').hide();}, 100);setTimeout(function() {$('section dt span').eq(question - 1).show();}, 250);setTimeout(function() {$('section dd').eq(question - 1).show();}, 500);setTimeout(function() {$('main').addClass('question2');}, 1500);setTimeout(function() {$('section a#buttonNext').show();}, 2500);return false;});$('section a#buttonNext').on('click', function() {fx.play('next');$(this).hide();if (question == $('section dt').length) {$('footer h2 span').eq(0).text(score);$('footer h2 span').eq(2).text(question);$('footer ol li').eq(score).show();$('header p').hide();$('main').attr('class', 'result');$('#_share').attr('data-_message', $('footer h2').attr('data-message').replace('{score}', score).replace('{questions}', question) );setTimeout(function() {fx.play('result');$('footer h2').show();}, 1250);setTimeout(function() {$('footer ol').show();}, 1500);setTimeout(function() {$('#_share').show();}, 2000);return false;}$('section dt span').eq(question - 1).hide();$('section dt img').eq(question - 1).removeClass('on');$('main').removeClass('question2');setTimeout(function() {$('section dd').eq(question - 1).hide();question ++;$('section dt img').eq(question - 1).addClass('on');setTimeout(function() {fx.play('appear');$('section a#buttonAnswer1').show();}, 1250);setTimeout(function() {if ($('section a#buttonAnswer1').css('display') !== 'none') {fx.play('appear');$('section a#buttonAnswer2').show();}}, 1500);}, 500);return false;});
+</script>
+
+
+<!-- 📊 analytics -->
+<script>
+	window.fathom = { trackGoal: function(a,b){} };
+</script>
+<script src="https://cdn.usefathom.com/script.js" data-site="RBWKC" defer=""></script>
+
+
+<!-- ⏱ 0.0024 -->
+
+</body></html
